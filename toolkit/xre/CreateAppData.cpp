@@ -105,8 +105,15 @@ static nsresult ParseConsoleUrlFromDistribution(XREAppData& aAppData,
 // UAppData. It must be computable before the directory service and XPCOM are
 // up, which is why nsXREDirProvider's static helper is used.
 static nsresult GetFeltStorageFilePath(nsCString& aOutPath) {
+  nsCOMPtr<nsIFile> dir;
+  nsresult rv = nsXREDirProvider::GetUserAppDataDirectory(getter_AddRefs(dir));
+  NS_ENSURE_SUCCESS(rv, rv);
+  // The first GetUserAppDataDirectory call hands out the instance that
+  // nsXREDirProvider caches and serves as UAppData for the rest of startup,
+  // so it must not be mutated: appending without cloning would turn UAppData
+  // into .../felt.json for every later consumer.
   nsCOMPtr<nsIFile> file;
-  nsresult rv = nsXREDirProvider::GetUserAppDataDirectory(getter_AddRefs(file));
+  rv = dir->Clone(getter_AddRefs(file));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = file->AppendNative("felt.json"_ns);
   NS_ENSURE_SUCCESS(rv, rv);
