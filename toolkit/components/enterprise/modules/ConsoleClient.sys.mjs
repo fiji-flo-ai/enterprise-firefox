@@ -40,6 +40,33 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
 export const CONSOLE_ADDRESS_PREF = "enterprise.console.address";
 
 /**
+ * Placeholder value the pref holds on generic (non-repacked) builds, where
+ * distribution.ini does not bake in a real console address. The actual
+ * address then comes from the MOZ_ENTERPRISE_CONSOLE_ADDRESS environment
+ * variable or from felt.json, filled in by the pre-profile console setup
+ * dialog. Keep in sync with ENTERPRISE_CONSOLE_PLACEHOLDER in nsXULAppAPI.h.
+ */
+export const CONSOLE_ADDRESS_PLACEHOLDER = "FIREFOX_ENTERPRISE_GENERIC";
+
+async function resolveConsoleAddress(prefValue) {
+  if (prefValue !== CONSOLE_ADDRESS_PLACEHOLDER) {
+    return prefValue;
+  }
+  const envUrl = Services.env.get("MOZ_ENTERPRISE_CONSOLE_ADDRESS");
+  if (envUrl) {
+    return envUrl;
+  }
+  await lazy.FeltStorage.init();
+  const storedUrl = lazy.FeltStorage.getConsoleAddress();
+  if (!storedUrl) {
+    throw new Error(
+      "Console address is the generic placeholder and no stored address exists"
+    );
+  }
+  return storedUrl;
+}
+
+/**
  * Error logged when user needs to reauthenticate to obtain new token data
  */
 class ReauthRequiredError extends Error {
@@ -105,7 +132,7 @@ export const ConsoleClient = {
       this._consoleUriReadyPromise = new Promise((resolve, reject) => {
         try {
           const consoleURI = Services.prefs.getStringPref(CONSOLE_ADDRESS_PREF);
-          resolve(consoleURI);
+          resolve(resolveConsoleAddress(consoleURI));
         } catch (e) {
           lazy.log.warn(`Missing console URI. Waiting on pref change.`);
           const consolePrefObserver = {
@@ -120,7 +147,7 @@ export const ConsoleClient = {
                   try {
                     const consoleURI =
                       Services.prefs.getStringPref(CONSOLE_ADDRESS_PREF);
-                    resolve(consoleURI);
+                    resolve(resolveConsoleAddress(consoleURI));
                   } catch (ex) {
                     lazy.log.error(
                       `Critical misconfiguration: Missing console URI`

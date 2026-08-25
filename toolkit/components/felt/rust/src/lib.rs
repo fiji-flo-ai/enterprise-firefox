@@ -154,6 +154,49 @@ pub extern "C" fn firefox_felt_is_startup_complete() -> bool {
     }
 }
 
+fn read_felt_json(path: &str) -> Option<serde_json::Value> {
+    let bytes = std::fs::read(path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Read the console URL persisted in felt.json (UAppData) by the console
+/// setup dialog. Returns false when the file or the key is absent, which the
+/// caller treats as "setup needed".
+#[no_mangle]
+pub extern "C" fn firefox_felt_read_stored_console_url(
+    path: &nsstring::nsACString,
+    out_url: &mut nsstring::nsACString,
+) -> bool {
+    let path = path.to_utf8();
+    let Some(json) = read_felt_json(&path) else {
+        return false;
+    };
+    match json.get("consoleAddress").and_then(|v| v.as_str()) {
+        Some(url) if !url.is_empty() => {
+            out_url.assign(url);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Remove the persisted console URL from felt.json, keeping the other keys.
+/// Returns true when the value is gone (including when it was never there).
+#[no_mangle]
+pub extern "C" fn firefox_felt_clear_stored_console_url(path: &nsstring::nsACString) -> bool {
+    let path = path.to_utf8();
+    let Some(mut json) = read_felt_json(&path) else {
+        return true;
+    };
+    let Some(obj) = json.as_object_mut() else {
+        return false;
+    };
+    if obj.remove("consoleAddress").is_none() {
+        return true;
+    }
+    std::fs::write(&*path, json.to_string()).is_ok()
+}
+
 #[no_mangle]
 pub extern "C" fn firefox_felt_send_felt_ready() {
     trace!("firefox_felt_send_felt_ready()");

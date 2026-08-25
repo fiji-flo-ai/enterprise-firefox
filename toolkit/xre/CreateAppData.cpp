@@ -17,6 +17,9 @@
 
 #if defined(MOZ_ENTERPRISE)
 #  include "mozilla/toolkit/components/felt/felt.h"
+#  include "nsXREDirProvider.h"
+#  include "nsString.h"
+#  include "prenv.h"
 #endif
 
 using namespace mozilla;
@@ -98,12 +101,56 @@ static nsresult ParseConsoleUrlFromDistribution(XREAppData& aAppData,
   return rv;
 }
 
+// Path to felt.json, the profile-independent enterprise storage file kept in
+// UAppData. It must be computable before the directory service and XPCOM are
+// up, which is why nsXREDirProvider's static helper is used.
+static nsresult GetFeltStorageFilePath(nsCString& aOutPath) {
+  nsCOMPtr<nsIFile> file;
+  nsresult rv = nsXREDirProvider::GetUserAppDataDirectory(getter_AddRefs(file));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = file->AppendNative("felt.json"_ns);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsAutoString path;
+  rv = file->GetPath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
+  CopyUTF16toUTF8(path, aOutPath);
+  return NS_OK;
+}
+
+nsresult XRE_ClearStoredEnterpriseConsoleUrl() {
+  nsCString path;
+  nsresult rv = GetFeltStorageFilePath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return firefox_felt_clear_stored_console_url(&path) ? NS_OK
+                                                      : NS_ERROR_FAILURE;
+}
+
 nsresult XRE_ParseEnterpriseServerURL(XREAppData& aAppData,
                                       const char* aServerUrl) {
   nsCString serverUrl(aServerUrl);
   if (!serverUrl.Length()) {
     nsresult rv = ParseConsoleUrlFromDistribution(aAppData, serverUrl);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  if (serverUrl.EqualsLiteral(ENTERPRISE_CONSOLE_PLACEHOLDER)) {
+    // Generic (non-repacked) build: the repack did not bake in a console
+    // address, so use the test override or the URL persisted by the console
+    // setup dialog. If neither exists the caller shows that dialog.
+    const char* envUrl = PR_GetEnv("MOZ_ENTERPRISE_CONSOLE_ADDRESS");
+    if (envUrl && *envUrl) {
+      serverUrl.Assign(envUrl);
+    } else {
+      nsCString path;
+      nsresult rv = GetFeltStorageFilePath(path);
+      NS_ENSURE_SUCCESS(rv, rv);
+      nsCString storedUrl;
+      if (!firefox_felt_read_stored_console_url(&path, &storedUrl) ||
+          storedUrl.IsEmpty()) {
+        return NS_ERROR_NOT_AVAILABLE;
+      }
+      serverUrl = storedUrl;
+    }
   }
 
   if (serverUrl.Last() != '/') {

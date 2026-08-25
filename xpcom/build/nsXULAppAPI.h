@@ -250,6 +250,16 @@ nsresult XRE_ParseAppData(nsIFile* aINIFile, mozilla::XREAppData& aAppData);
 
 #if defined(MOZ_ENTERPRISE)
 /**
+ * Placeholder value for enterprise.console.address in distribution.ini
+ * marking a generic build whose console address was not baked in by a repack.
+ * Such builds resolve the address from the MOZ_ENTERPRISE_CONSOLE_ADDRESS
+ * environment variable or from the value persisted in felt.json by the
+ * console setup dialog, which is shown when neither exists. Keep in sync with
+ * CONSOLE_ADDRESS_PLACEHOLDER in ConsoleClient.sys.mjs.
+ */
+#  define ENTERPRISE_CONSOLE_PLACEHOLDER "FIREFOX_ENTERPRISE_GENERIC"
+
+/**
  * Parse the distribution.ini file to read the enterprise console address. Use
  * the console address to build the crash report URL to set in an existing
  * nsXREAppData structure.
@@ -259,9 +269,20 @@ nsresult XRE_ParseAppData(nsIFile* aINIFile, mozilla::XREAppData& aAppData);
  *
  * @param aServerUrl Enterprise console address, if empty read from
  * distribution.ini
+ *
+ * @return NS_ERROR_NOT_AVAILABLE when distribution.ini holds
+ * ENTERPRISE_CONSOLE_PLACEHOLDER and no stored or environment-provided
+ * address exists yet; the caller is expected to run the console setup dialog.
  */
 nsresult XRE_ParseEnterpriseServerURL(mozilla::XREAppData& aAppData,
                                       const char* aServerUrl = "");
+
+/**
+ * Remove the console address persisted in felt.json so the console setup
+ * dialog runs again on a generic build. Backs the --reset-console-address
+ * command line flag.
+ */
+nsresult XRE_ClearStoredEnterpriseConsoleUrl();
 #endif
 
 const char* XRE_GeckoProcessTypeToString(GeckoProcessType aProcessType);

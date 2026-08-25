@@ -1,0 +1,51 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url("chrome://global/skin/global.css");
+@import url("chrome://global/skin/design-system/text-and-typography.css");
+@import url("chrome://global/skin/design-system/tokens-brand.css");
+@import url("chrome://branding/content/felt-tokens.css");
+@import url("chrome://felt/content/styles/felt-tokens.css");
+
+body {
+  margin: 0;
+  background-color: var(--background-color-canvas);
+  color: var(--text-color);
+}
+
+.console-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-medium);
+  padding: var(--space-xlarge);
+}
+
+.console-setup__title {
+  margin: 0;
+}
+
+.console-setup__description {
+  margin: 0;
+}
+
+.console-setup__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-medium);
+}
+
+.console-setup__buttons {
+  display: flex;
+  justify-content: end;
+  gap: var(--space-small);
+  margin-block-start: var(--space-medium);
+}
+
+.fill-width {
+  width: 100%;
+}
+
+moz-message-bar[hidden] {
+  display: none;
+}
