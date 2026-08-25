@@ -17,6 +17,11 @@
 
 #if defined(MOZ_ENTERPRISE)
 #  include "mozilla/toolkit/components/felt/felt.h"
+#  include "mozilla/Try.h"
+#  include "mozilla/URLPreloader.h"
+#  include "nsXREDirProvider.h"
+#  include "nsString.h"
+#  include "prenv.h"
 #endif
 
 using namespace mozilla;
@@ -81,11 +86,104 @@ nsresult XRE_ParseAppData(nsIFile* aINIFile, XREAppData& aAppData) {
 }
 
 #if defined(MOZ_ENTERPRISE)
+// Path to felt.json, the profile-independent enterprise storage file kept in
+// UAppData. It must be computable before the directory service and XPCOM are
+// up, which is why nsXREDirProvider's static helper is used.
+static nsresult GetFeltStorageFilePath(nsCString& aOutPath) {
+  nsCOMPtr<nsIFile> dir;
+  nsresult rv = nsXREDirProvider::GetUserAppDataDirectory(getter_AddRefs(dir));
+  NS_ENSURE_SUCCESS(rv, rv);
+  // The first GetUserAppDataDirectory call hands out the instance that
+  // nsXREDirProvider caches and serves as UAppData for the rest of startup,
+  // so it must not be mutated: appending without cloning would turn UAppData
+  // into .../felt.json for every later consumer.
+  nsCOMPtr<nsIFile> file;
+  rv = dir->Clone(getter_AddRefs(file));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = file->AppendNative("felt.json"_ns);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsAutoString path;
+  rv = file->GetPath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
+  CopyUTF16toUTF8(path, aOutPath);
+  return NS_OK;
+}
+
+nsresult XRE_ClearStoredEnterpriseConsoleUrl() {
+  nsCString path;
+  nsresult rv = GetFeltStorageFilePath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return firefox_felt_clear_stored_console_url(&path) ? NS_OK
+                                                      : NS_ERROR_FAILURE;
+}
+
+nsresult XRE_ReadEnterpriseConsoleAddress(const XREAppData& aAppData,
+                                          nsACString& aConsoleAddress) {
+  nsCOMPtr<nsIFile> cfgFile;
+  nsresult rv = aAppData.xreDirectory->Clone(getter_AddRefs(cfgFile));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = cfgFile->Append(u"firefox.cfg"_ns);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCString obscured = MOZ_TRY(URLPreloader::ReadFile(cfgFile));
+
+  // AutoConfig files ship byte shifted by the default value of the
+  // general.config.obscure_value pref. Keep in sync with OBSCURE_VALUE in
+  // browser/branding/enterprise/byteshift.py.
+  constexpr uint8_t kObscureValue = 13;
+  nsCString source;
+  source.SetLength(obscured.Length());
+  char* decoded = source.BeginWriting();
+  for (uint32_t i = 0; i < obscured.Length(); ++i) {
+    decoded[i] = char(uint8_t(obscured.CharAt(i)) - kObscureValue);
+  }
+
+  // Light-weight extraction of the second argument of the
+  // lockPref/defaultPref call setting the address; full AutoConfig
+  // evaluation only happens in XRE_mainRun.
+  constexpr auto kPrefName = "\"enterprise.console.address\""_ns;
+  int32_t pos = source.Find(kPrefName);
+  if (pos == kNotFound) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  int32_t valueStart = source.FindChar('"', pos + kPrefName.Length());
+  if (valueStart == kNotFound) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  ++valueStart;
+  int32_t valueEnd = source.FindChar('"', valueStart);
+  if (valueEnd == kNotFound) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  aConsoleAddress.Assign(Substring(source, valueStart, valueEnd - valueStart));
+  return NS_OK;
+}
+
 nsresult XRE_ParseEnterpriseServerURL(XREAppData& aAppData,
                                       const char* aServerUrl) {
   nsCString serverUrl(aServerUrl);
   if (serverUrl.IsEmpty()) {
     return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  if (serverUrl.EqualsLiteral(ENTERPRISE_CONSOLE_PLACEHOLDER)) {
+    // Generic (non-repacked) build: the repack did not bake in a console
+    // address, so use the test override or the URL persisted by the console
+    // setup dialog. If neither exists the caller shows that dialog.
+    const char* envUrl = PR_GetEnv("MOZ_ENTERPRISE_CONSOLE_ADDRESS");
+    if (envUrl && *envUrl) {
+      serverUrl.Assign(envUrl);
+    } else {
+      nsCString path;
+      nsresult rv = GetFeltStorageFilePath(path);
+      NS_ENSURE_SUCCESS(rv, rv);
+      nsCString storedUrl;
+      if (!firefox_felt_read_stored_console_url(&path, &storedUrl) ||
+          storedUrl.IsEmpty()) {
+        return NS_ERROR_NOT_AVAILABLE;
+      }
+      serverUrl = storedUrl;
+    }
   }
 
   if (serverUrl.Last() != '/') {

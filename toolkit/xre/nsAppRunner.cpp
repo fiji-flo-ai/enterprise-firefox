@@ -3460,6 +3460,70 @@ static ReturnAbortOnError ShowProfileSelector(
                            kTelemetryEnv);
 }
 
+#if defined(MOZ_ENTERPRISE)
+// Modal pre-profile dialog asking for the enterprise console address on
+// generic builds (the AutoConfig file holds ENTERPRISE_CONSOLE_PLACEHOLDER
+// and nothing is persisted yet). The dialog stores the address in felt.json,
+// then
+// this relaunches so the very early startup consumers (crash reporter URL,
+// update URL, FELT connection) see the configured value from the start.
+// Modeled on ShowProfileDialog.
+static ReturnAbortOnError ShowEnterpriseConsoleSetup(
+    nsINativeAppSupport* aNative) {
+  nsresult rv;
+  int32_t dialogReturn = 0;
+
+  // We aren't going to start this instance so we can unblock other instances
+  // from starting up.
+#  if defined(MOZ_HAS_REMOTE)
+  gStartupLock = nullptr;
+#  endif
+
+  {
+    ScopedXPCOMStartup xpcom;
+    rv = xpcom.Initialize();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = xpcom.SetWindowCreator(aNative);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+
+#  ifdef XP_MACOSX
+    InitializeMacApp();
+    CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv,
+                                               true);
+#  endif
+
+    {  // extra scoping is needed so we release these components before xpcom
+       // shutdown
+      nsCOMPtr<nsIWindowWatcher> windowWatcher(
+          do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+      nsCOMPtr<nsIDialogParamBlock> ioParamBlock(
+          do_CreateInstance(NS_DIALOGPARAMBLOCK_CONTRACTID));
+      NS_ENSURE_TRUE(windowWatcher && ioParamBlock, NS_ERROR_FAILURE);
+
+      nsCOMPtr<nsIAppStartup> appStartup(components::AppStartup::Service());
+      NS_ENSURE_TRUE(appStartup, NS_ERROR_FAILURE);
+
+      nsCOMPtr<mozIDOMWindowProxy> newWindow;
+      // Same size as the FELT window (Felt.sys.mjs showWindow), which this
+      // dialog visually mirrors.
+      rv = windowWatcher->OpenWindow(
+          nullptr, "chrome://felt/content/consoleSetup.xhtml"_ns, "_blank"_ns,
+          "centerscreen,chrome,modal,titlebar,resizable,width=727,height=744"_ns,
+          ioParamBlock, getter_AddRefs(newWindow));
+      NS_ENSURE_SUCCESS_LOG(rv, rv);
+
+      rv = ioParamBlock->GetInt(0, &dialogReturn);
+      if (NS_FAILED(rv) || dialogReturn != 1) {
+        return NS_ERROR_ABORT;
+      }
+    }
+  }
+
+  return LaunchChild(false, true);
+}
+#endif
+
 static bool gDoMigration = false;
 static bool gDoProfileReset = false;
 constinit static nsCOMPtr<nsIToolkitProfile> gResetOldProfile;
@@ -4361,6 +4425,13 @@ static void MakeOrSetMinidumpPath(nsIFile* profD) {
 
 const XREAppData* gAppData = nullptr;
 
+#if defined(MOZ_ENTERPRISE)
+// Set when the AutoConfig file holds ENTERPRISE_CONSOLE_PLACEHOLDER and no
+// console address has been persisted yet; XRE_mainStartup then runs the
+// console setup dialog (FELT UI only).
+static bool gEnterpriseConsoleSetupNeeded = false;
+#endif
+
 /**
  * NSPR will search for the "nspr_use_zone_allocator" symbol throughout
  * the process and use it to determine whether the application defines its own
@@ -4887,6 +4958,33 @@ int XREMain::XRE_mainInit(bool* aExitFlag,
       return 1;
     }
   }
+
+#if defined(MOZ_ENTERPRISE)
+  if (CheckArg("reset-console-address") == ARG_FOUND) {
+    // Forget the address entered in the console setup dialog. On generic
+    // builds the dialog then runs again below. CheckArg removes the flag from
+    // gArgv before gRestartArgv is derived from it, so the post-dialog
+    // relaunch does not clear the freshly saved address again.
+    XRE_ClearStoredEnterpriseConsoleUrl();
+  }
+  {
+    // AutoConfig only evaluates firefox.cfg once the pref service is up in
+    // XRE_mainRun, where the server URLs are derived from the
+    // enterprise.console.address pref. Read the file directly here to learn
+    // before profile selection whether it holds
+    // ENTERPRISE_CONSOLE_PLACEHOLDER with no resolvable address, in which
+    // case XRE_mainStartup shows the console setup dialog. Otherwise
+    // ignoring nsresult; XRE_mainRun derives the URLs from the evaluated
+    // pref either way.
+    nsAutoCString consoleAddress;
+    rv = XRE_ReadEnterpriseConsoleAddress(*mAppData, consoleAddress);
+    if (NS_SUCCEEDED(rv) &&
+        XRE_ParseEnterpriseServerURL(*mAppData, consoleAddress.get()) ==
+            NS_ERROR_NOT_AVAILABLE) {
+      gEnterpriseConsoleSetupNeeded = true;
+    }
+  }
+#endif
 
   // Check sanity and correctness of app data.
 
@@ -5986,6 +6084,23 @@ int XREMain::XRE_mainStartup(bool* aExitFlag,
 #endif
 
   // We now know there is no existing instance using the selected profile.
+
+#if defined(MOZ_ENTERPRISE)
+  if (gEnterpriseConsoleSetupNeeded && is_felt_ui()
+#  ifdef MOZ_BACKGROUNDTASKS
+      && !BackgroundTasks::IsBackgroundTaskMode()
+#  endif
+  ) {
+    rv = ShowEnterpriseConsoleSetup(mNativeApp);
+    if (rv == NS_ERROR_LAUNCHED_CHILD_PROCESS || rv == NS_ERROR_ABORT) {
+      *aExitFlag = true;
+      return 0;
+    }
+    if (NS_FAILED(rv)) {
+      return 1;
+    }
+  }
+#endif
 
   // We only ever show the profile selector if a specific profile wasn't chosen
   // via command line arguments or environment variables.
