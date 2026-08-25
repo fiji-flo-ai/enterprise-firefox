@@ -30,40 +30,60 @@
   </head>
 
   <body>
-    <main class="console-setup">
-      <h1
-        class="console-setup__title"
-        data-l10n-id="felt-console-setup-title"
-      ></h1>
-      <p
-        class="console-setup__description"
-        data-l10n-id="felt-console-setup-description"
-      ></p>
-      <form class="console-setup__form">
-        <moz-input-text
-          id="console-setup-address"
-          data-l10n-id="felt-console-setup-input"
-          class="fill-width"
-        ></moz-input-text>
-        <moz-message-bar
-          id="console-setup-error"
-          type="error"
-          data-l10n-id="felt-console-setup-invalid-address"
-          hidden=""
-        ></moz-message-bar>
-        <div class="console-setup__buttons">
-          <moz-button
-            id="console-setup-quit-btn"
-            data-l10n-id="felt-console-setup-quit-btn"
-          ></moz-button>
-          <moz-button
-            id="console-setup-save-btn"
-            type="primary"
-            data-l10n-id="felt-console-setup-save-btn"
-            disabled="true"
-          ></moz-button>
+    <div class="felt">
+      <div class="felt-logo">
+        <div class="felt-logo__container"></div>
+      </div>
+      <div class="felt-main">
+        <div class="felt-card">
+          <div class="felt-login">
+            <div class="felt-login__email-pane">
+              <img class="enterprise-wordmark" />
+              <form class="felt-form">
+                <h1
+                  class="felt-form__title"
+                  data-l10n-id="felt-console-setup-title"
+                ></h1>
+                <div class="felt-form__elements">
+                  <p
+                    class="console-setup__description"
+                    data-l10n-id="felt-console-setup-description"
+                  ></p>
+                  <moz-input-text
+                    id="console-setup-address"
+                    data-l10n-id="felt-console-setup-input"
+                    class="fill-width"
+                  ></moz-input-text>
+                  <moz-button
+                    id="console-setup-save-btn"
+                    type="primary"
+                    class="fill-width"
+                    data-l10n-id="felt-console-setup-save-btn"
+                    disabled="true"
+                  ></moz-button>
+                  <moz-button
+                    id="console-setup-quit-btn"
+                    class="fill-width"
+                    data-l10n-id="felt-console-setup-quit-btn"
+                  ></moz-button>
+                  <moz-message-bar
+                    id="console-setup-error"
+                    class="fill-width"
+                    type="error"
+                    data-l10n-id="felt-console-setup-invalid-address"
+                    hidden=""
+                  ></moz-message-bar>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
-      </form>
-    </main>
+        <div class="felt-footer">
+          <div id="felt-footer-content">
+            <span class="felt-powered-by" data-l10n-id="felt-powered-by"></span>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

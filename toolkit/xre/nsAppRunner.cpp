@@ -3504,9 +3504,11 @@ static ReturnAbortOnError ShowEnterpriseConsoleSetup(
       NS_ENSURE_TRUE(appStartup, NS_ERROR_FAILURE);
 
       nsCOMPtr<mozIDOMWindowProxy> newWindow;
+      // Same size as the FELT window (Felt.sys.mjs showWindow), which this
+      // dialog visually mirrors.
       rv = windowWatcher->OpenWindow(
           nullptr, "chrome://felt/content/consoleSetup.xhtml"_ns, "_blank"_ns,
-          "centerscreen,chrome,modal,titlebar,width=560,height=340"_ns,
+          "centerscreen,chrome,modal,titlebar,resizable,width=727,height=744"_ns,
           ioParamBlock, getter_AddRefs(newWindow));
       NS_ENSURE_SUCCESS_LOG(rv, rv);
 

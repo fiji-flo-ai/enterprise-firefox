@@ -111,7 +111,7 @@ felt-back-button = Back to login
 ## enterprise console address has been configured yet.
 
 felt-console-setup-window-title = { -brand-short-name } — Setup
-felt-console-setup-title = Connect to your organization
+felt-console-setup-title = Get started
 felt-console-setup-description = Enter the address of your organization’s management console. Your administrator can provide it.
 felt-console-setup-input =
     .label = Console address
