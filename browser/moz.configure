@@ -76,7 +76,7 @@ set_define("MOZ_ENTERPRISE", enable_enterprise)
 imply_option("--with-crashreporter-url", "", when="--enable-enterprise")
 
 default_enterprise_console = dependable(
-    "https://stage.fx-enterprise.nonprod.webservices.mozgcp.net"
+    "FIREFOX_ENTERPRISE_GENERIC"
 )
 
 option(
