@@ -12,6 +12,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
  * Storage helper for reading and writing felt-related profile data to felt.json
  */
 export const FeltStorage = {
+  _initialized: false,
+
   /**
    * Absolute path to the felt.json file in the current profile.
    *
@@ -23,10 +25,11 @@ export const FeltStorage = {
   ),
 
   async init() {
-    if (!(this._feltStorage instanceof lazy.JSONFile)) {
+    if (!this._initialized) {
       this._feltStorage = new lazy.JSONFile({
         path: this.FELT_FILE_PATH,
       });
+      this._initialized = true;
     }
     await this._feltStorage.load();
   },
@@ -95,5 +98,6 @@ export const FeltStorage = {
 
   async uninit() {
     this._feltStorage = {};
+    this._initialized = false;
   },
 };
