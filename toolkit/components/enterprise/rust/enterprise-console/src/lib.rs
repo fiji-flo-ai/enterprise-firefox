@@ -30,7 +30,7 @@ pub const CONSOLE_ADDRESS_PLACEHOLDER: &str = "FIREFOX_ENTERPRISE_GENERIC";
 
 /// Environment variable providing the console address on generic builds
 /// (used by test harnesses).
-pub const CONSOLE_ADDRESS_ENV: &str = "MOZ_ENTERPRISE_CONSOLE_ADDRESS";
+pub const CONSOLE_ADDRESS_ENV: &str = "MOZ_ENTERPRISE_CONSOLE_URL";
 
 /// Storage file in the user application data directory where the console
 /// setup dialog persists the address on generic builds.

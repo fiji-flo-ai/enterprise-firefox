@@ -24,7 +24,7 @@ ENV_CONSOLE_ADDRESS = "https://console.autoconfig.example.com"
 
 class FeltUpdatesAutoConfig(FeltTests):
     KEEP_AUTOCONFIG = True
-    EXTRA_ENV = {"MOZ_ENTERPRISE_CONSOLE_ADDRESS": ENV_CONSOLE_ADDRESS}
+    EXTRA_ENV = {"MOZ_ENTERPRISE_CONSOLE_URL": ENV_CONSOLE_ADDRESS}
 
     def test_felt_updates_autoconfig(self):
         self.run_verify_felt_app_update_url()

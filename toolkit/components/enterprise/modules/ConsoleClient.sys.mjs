@@ -37,7 +37,7 @@ export const CONSOLE_ADDRESS_PREF = "enterprise.console.address";
 /**
  * Placeholder value the pref holds on generic (non-repacked) builds, where
  * the AutoConfig file does not bake in a real console address. The actual
- * address then comes from the MOZ_ENTERPRISE_CONSOLE_ADDRESS environment
+ * address then comes from the MOZ_ENTERPRISE_CONSOLE_URL environment
  * variable or from felt.json, filled in by the pre-profile console setup
  * dialog. Keep in sync with CONSOLE_ADDRESS_PLACEHOLDER in the
  * enterprise-console crate (toolkit/components/enterprise/rust), which holds
@@ -50,7 +50,7 @@ async function resolveConsoleAddress(prefValue) {
   if (prefValue !== CONSOLE_ADDRESS_PLACEHOLDER) {
     return prefValue;
   }
-  const envUrl = Services.env.get("MOZ_ENTERPRISE_CONSOLE_ADDRESS");
+  const envUrl = Services.env.get("MOZ_ENTERPRISE_CONSOLE_URL");
   if (envUrl) {
     return envUrl;
   }

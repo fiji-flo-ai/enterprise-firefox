@@ -6086,7 +6086,7 @@ int XREMain::XRE_mainStartup(bool* aExitFlag,
 
 #if defined(MOZ_ENTERPRISE)
   // Test harnesses provide a console address via
-  // MOZ_ENTERPRISE_CONSOLE_ADDRESS (mozrunner test_environment and
+  // MOZ_ENTERPRISE_CONSOLE_URL (mozrunner test_environment and
   // Marionette's GeckoInstance), so setup should never be needed under
   // automation. Keep a backstop for harnesses that miss it: the modal
   // pre-profile dialog would otherwise hang the task until timeout.

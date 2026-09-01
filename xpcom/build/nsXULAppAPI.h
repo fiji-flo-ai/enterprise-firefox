@@ -261,7 +261,7 @@ nsresult XRE_ParseAppData(nsIFile* aINIFile, mozilla::XREAppData& aAppData);
  * (non-repacked) builds this is the placeholder from the AutoConfig file,
  * resolved by the enterprise-console crate
  * (toolkit/components/enterprise/rust) from the
- * MOZ_ENTERPRISE_CONSOLE_ADDRESS environment variable or from the value
+ * MOZ_ENTERPRISE_CONSOLE_URL environment variable or from the value
  * persisted in felt.json by the console setup dialog.
  *
  * @return NS_ERROR_NOT_AVAILABLE when aServerUrl is the generic build

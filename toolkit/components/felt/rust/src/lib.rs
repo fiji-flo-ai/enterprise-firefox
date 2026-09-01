@@ -208,7 +208,7 @@ pub extern "C" fn firefox_felt_console_address_from_autoconfig(
 }
 
 /// Resolve a console address that may be the generic build placeholder, from
-/// the MOZ_ENTERPRISE_CONSOLE_ADDRESS environment variable or the URL
+/// the MOZ_ENTERPRISE_CONSOLE_URL environment variable or the URL
 /// persisted in felt.json at the given path. A real address is returned
 /// unchanged. Returns false when the placeholder cannot be resolved; the
 /// caller then shows the console setup dialog. Backs
