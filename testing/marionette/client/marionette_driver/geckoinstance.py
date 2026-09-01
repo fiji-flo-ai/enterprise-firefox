@@ -441,6 +441,12 @@ class GeckoInstance:
         if env.get("MOZ_REMOTE_ALLOW_SYSTEM_ACCESS") is None:
             env.update({"MOZ_REMOTE_ALLOW_SYSTEM_ACCESS": "1"})
 
+        # Give enterprise builds a console address so generic builds never
+        # start unconfigured (or block on the console setup dialog) under
+        # Marionette. Set it to the empty string to exercise the unconfigured
+        # state.
+        env.setdefault("MOZ_ENTERPRISE_CONSOLE_ADDRESS", "http://127.0.0.1:1")
+
         args = {
             "binary": self.binary,
             "profile": self.profile,

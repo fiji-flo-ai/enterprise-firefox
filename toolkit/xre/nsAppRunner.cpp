@@ -6086,12 +6086,12 @@ int XREMain::XRE_mainStartup(bool* aExitFlag,
   // We now know there is no existing instance using the selected profile.
 
 #if defined(MOZ_ENTERPRISE)
-  // Never block automation on the interactive setup dialog: test harnesses
-  // launch the browser before any console address exists (Marionette's first
-  // launch precedes the test setUp that provides one via the AutoConfig file
-  // or MOZ_ENTERPRISE_CONSOLE_ADDRESS) and would time out waiting for it.
-  const bool enterpriseConsoleSetupAllowed =
-      !EnvHasValue("MOZ_AUTOMATION") && !CheckArgExists("marionette");
+  // Test harnesses provide a console address via
+  // MOZ_ENTERPRISE_CONSOLE_ADDRESS (mozrunner test_environment and
+  // Marionette's GeckoInstance), so setup should never be needed under
+  // automation. Keep a backstop for harnesses that miss it: the modal
+  // pre-profile dialog would otherwise hang the task until timeout.
+  const bool enterpriseConsoleSetupAllowed = !EnvHasValue("MOZ_AUTOMATION");
   if (gEnterpriseConsoleSetupNeeded && enterpriseConsoleSetupAllowed &&
       is_felt_ui()
 #  ifdef MOZ_BACKGROUNDTASKS
