@@ -163,31 +163,58 @@ pub extern "C" fn firefox_felt_read_stored_console_url(
     out_url: &mut nsstring::nsACString,
 ) -> bool {
     let path = path.to_utf8();
-    let Ok(bytes) = std::fs::read(&*path) else {
-        return false;
+    let bytes = match std::fs::read(&*path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                log::warn!("could not read the stored console URL from {path}: {e}");
+            }
+            return false;
+        }
     };
     match enterprise_console::stored_console_address(&bytes) {
-        Some(url) => {
+        Ok(url) => {
             out_url.assign(&url);
             true
         }
-        None => false,
+        Err(e) => {
+            if !e.is_expected_first_run() {
+                log::warn!("could not read the stored console URL from {path}: {e}");
+            }
+            false
+        }
     }
 }
 
 /// Remove the persisted console URL from felt.json, keeping the other keys.
-/// Returns true when the value is gone (including when it was never there).
+/// Returns true when the value is gone (including when it was never there);
+/// false when the file could not be read or updated, so the stale URL may
+/// still be picked up.
 #[no_mangle]
 pub extern "C" fn firefox_felt_clear_stored_console_url(path: &nsstring::nsACString) -> bool {
     let path = path.to_utf8();
-    let Ok(bytes) = std::fs::read(&*path) else {
-        return true;
+    let bytes = match std::fs::read(&*path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return true,
+        Err(e) => {
+            log::warn!("could not read {path} to clear the stored console URL: {e}");
+            return false;
+        }
     };
     use enterprise_console::RemoveStoredAddress;
     match enterprise_console::remove_stored_console_address(&bytes) {
         RemoveStoredAddress::AlreadyAbsent => true,
-        RemoveStoredAddress::Invalid => false,
-        RemoveStoredAddress::Removed(json) => std::fs::write(&*path, json).is_ok(),
+        RemoveStoredAddress::Invalid => {
+            log::warn!("cannot clear the stored console URL: {path} is not a JSON object");
+            false
+        }
+        RemoveStoredAddress::Removed(json) => match std::fs::write(&*path, json) {
+            Ok(()) => true,
+            Err(e) => {
+                log::warn!("could not write {path} to clear the stored console URL: {e}");
+                false
+            }
+        },
     }
 }
 
@@ -225,13 +252,23 @@ pub extern "C" fn firefox_felt_resolve_console_address(
         std::env::var(enterprise_console::CONSOLE_ADDRESS_ENV)
             .ok()
             .as_deref(),
-        || std::fs::read(&*path).ok(),
+        || std::fs::read(&*path),
     ) {
-        Some(url) => {
+        Ok(url) => {
             out_url.assign(&url);
             true
         }
-        None => false,
+        Err(e) => {
+            // A missing felt.json or one without an address is the normal
+            // first-run state leading to the setup dialog; anything else
+            // means a saved address exists but cannot be used.
+            if e.is_expected_first_run() {
+                trace!("console address placeholder not resolvable yet: {e}");
+            } else {
+                log::warn!("could not resolve the console address placeholder: {e}");
+            }
+            false
+        }
     }
 }
 

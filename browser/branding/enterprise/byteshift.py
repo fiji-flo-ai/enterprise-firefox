@@ -25,7 +25,9 @@ def generate(output, input_path):
     """
     with open(input_path, "rb") as fh:
         data = fh.read()
-    console_url= buildconfig.substs.get("MOZ_ENTERPRISE_CONSOLE_URL")
+    console_url = buildconfig.substs.get("MOZ_ENTERPRISE_CONSOLE_URL")
     if console_url:
-        data = data.replace(b"@MOZ_ENTERPRISE_CONSOLE_URL@", console_url.encode("utf-8"))
+        data = data.replace(
+            b"@MOZ_ENTERPRISE_CONSOLE_URL@", console_url.encode("utf-8")
+        )
     output.write(bytes((byte + OBSCURE_VALUE) & 0xFF for byte in data))

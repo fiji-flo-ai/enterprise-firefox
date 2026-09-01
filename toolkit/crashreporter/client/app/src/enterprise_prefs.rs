@@ -97,8 +97,13 @@ fn console_base(server_url: Option<&str>, data_dir: Option<&Path>) -> anyhow::Re
     let address = autoconfig_console_address()?;
     let env_value = crate::std::env::var(CONSOLE_ADDRESS_ENV).ok();
     let base = resolve_console_address(&address, env_value.as_deref(), || {
-        let path = data_dir?.parent()?.join(FELT_STORAGE_FILENAME);
-        crate::std::fs::read(&path).ok()
+        let dir = data_dir.and_then(|dir| dir.parent()).ok_or_else(|| {
+            crate::std::io::Error::new(
+                crate::std::io::ErrorKind::NotFound,
+                "no data directory to locate the felt storage file",
+            )
+        })?;
+        crate::std::fs::read(&dir.join(FELT_STORAGE_FILENAME))
     })
     .context("could not resolve the generic build console address placeholder")?;
     Ok(base.trim_end_matches('/').to_owned())

@@ -71,35 +71,87 @@ pub fn console_address_from_autoconfig(contents: &[u8]) -> Option<String> {
     None
 }
 
+/// Why [`resolve_console_address`] or [`stored_console_address`] could not
+/// produce an address. Callers treat every variant as "console setup needed";
+/// the variant names the cause for logging.
+#[derive(Debug)]
+pub enum ResolveError {
+    /// felt.json could not be read. `std::io::ErrorKind::NotFound` is the
+    /// expected first-run state; other kinds are real problems.
+    FeltStorageRead(std::io::Error),
+    /// felt.json exists but is not parseable JSON.
+    FeltStorageCorrupt,
+    /// felt.json holds no (non-empty) console address.
+    NoStoredAddress,
+}
+
+impl std::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolveError::FeltStorageRead(e) => {
+                write!(f, "could not read the felt storage file: {e}")
+            }
+            ResolveError::FeltStorageCorrupt => {
+                write!(f, "the felt storage file is not parseable JSON")
+            }
+            ResolveError::NoStoredAddress => {
+                write!(f, "the felt storage file holds no console address")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ResolveError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ResolveError::FeltStorageRead(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl ResolveError {
+    /// The expected setup-needed state: no felt.json yet, or one without an
+    /// address. Everything else points at a real problem worth surfacing.
+    pub fn is_expected_first_run(&self) -> bool {
+        match self {
+            ResolveError::FeltStorageRead(e) => e.kind() == std::io::ErrorKind::NotFound,
+            ResolveError::FeltStorageCorrupt => false,
+            ResolveError::NoStoredAddress => true,
+        }
+    }
+}
+
 /// Resolve a console address that may be [`CONSOLE_ADDRESS_PLACEHOLDER`].
 ///
 /// A real address is returned unchanged. The placeholder resolves to
 /// `env_value` (the value of [`CONSOLE_ADDRESS_ENV`]) when non-empty, then to
 /// the address stored in felt.json, whose contents `read_felt_json` supplies
-/// (called only when needed). Returns None when the placeholder cannot be
-/// resolved, in which case the browser shows the console setup dialog.
+/// (called only when needed). The error says why the placeholder could not be
+/// resolved; the browser then shows the console setup dialog.
 pub fn resolve_console_address(
     address: &str,
     env_value: Option<&str>,
-    read_felt_json: impl FnOnce() -> Option<Vec<u8>>,
-) -> Option<String> {
+    read_felt_json: impl FnOnce() -> Result<Vec<u8>, std::io::Error>,
+) -> Result<String, ResolveError> {
     if address != CONSOLE_ADDRESS_PLACEHOLDER {
-        return Some(address.to_owned());
+        return Ok(address.to_owned());
     }
     if let Some(url) = env_value {
         if !url.is_empty() {
-            return Some(url.to_owned());
+            return Ok(url.to_owned());
         }
     }
-    stored_console_address(&read_felt_json()?)
+    stored_console_address(&read_felt_json().map_err(ResolveError::FeltStorageRead)?)
 }
 
 /// Read the console address out of felt.json contents.
-pub fn stored_console_address(felt_json: &[u8]) -> Option<String> {
-    let json: serde_json::Value = serde_json::from_slice(felt_json).ok()?;
+pub fn stored_console_address(felt_json: &[u8]) -> Result<String, ResolveError> {
+    let json: serde_json::Value =
+        serde_json::from_slice(felt_json).map_err(|_| ResolveError::FeltStorageCorrupt)?;
     match json.get(FELT_CONSOLE_ADDRESS_KEY).and_then(|v| v.as_str()) {
-        Some(url) if !url.is_empty() => Some(url.to_owned()),
-        _ => None,
+        Some(url) if !url.is_empty() => Ok(url.to_owned()),
+        _ => Err(ResolveError::NoStoredAddress),
     }
 }
 
@@ -205,8 +257,8 @@ mod test {
             resolve_console_address("https://console.example.com/", None, || panic!(
                 "must not read felt.json"
             ))
-            .as_deref(),
-            Some("https://console.example.com/")
+            .unwrap(),
+            "https://console.example.com/"
         );
     }
 
@@ -218,34 +270,49 @@ mod test {
                 Some("https://env.example.com/"),
                 || panic!("must not read felt.json")
             )
-            .as_deref(),
-            Some("https://env.example.com/")
+            .unwrap(),
+            "https://env.example.com/"
         );
     }
 
     #[test]
     fn resolve_placeholder_from_felt_storage() {
         assert_eq!(
-            resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, Some(""), || Some(
+            resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, Some(""), || Ok(
                 br#"{"consoleAddress": "https://stored.example.com/"}"#.to_vec()
             ))
-            .as_deref(),
-            Some("https://stored.example.com/")
+            .unwrap(),
+            "https://stored.example.com/"
         );
     }
 
     #[test]
-    fn resolve_placeholder_unresolvable() {
-        assert_eq!(
-            resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, None, || Some(
-                br#"{"deviceId": "abc"}"#.to_vec()
-            )),
-            None
-        );
-        assert_eq!(
-            resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, None, || None),
-            None
-        );
+    fn resolve_placeholder_unresolvable_names_the_cause() {
+        let no_address = resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, None, || {
+            Ok(br#"{"deviceId": "abc"}"#.to_vec())
+        });
+        assert!(matches!(&no_address, Err(ResolveError::NoStoredAddress)));
+        assert!(no_address.unwrap_err().is_expected_first_run());
+
+        let missing_file = resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, None, || {
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        });
+        assert!(matches!(
+            &missing_file,
+            Err(ResolveError::FeltStorageRead(_))
+        ));
+        assert!(missing_file.unwrap_err().is_expected_first_run());
+
+        let unreadable_file = resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, None, || {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        });
+        assert!(!unreadable_file.unwrap_err().is_expected_first_run());
+
+        let corrupt = resolve_console_address(CONSOLE_ADDRESS_PLACEHOLDER, None, || {
+            Ok(b"not json".to_vec())
+        });
+        assert!(matches!(&corrupt, Err(ResolveError::FeltStorageCorrupt)));
+        assert!(!corrupt.unwrap_err().is_expected_first_run());
     }
 
     #[test]

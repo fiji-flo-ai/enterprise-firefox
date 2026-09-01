@@ -150,7 +150,11 @@ nsresult XRE_ParseEnterpriseServerURL(XREAppData& aAppData,
   // address passes through unchanged. The path computation is best effort:
   // it is only read when the placeholder has to be resolved from felt.json.
   nsCString feltJsonPath;
-  (void)GetFeltStorageFilePath(feltJsonPath);
+  if (NS_FAILED(GetFeltStorageFilePath(feltJsonPath))) {
+    NS_WARNING(
+        "Could not compute the felt.json path; a stored console address "
+        "cannot be found");
+  }
   nsCString resolvedUrl;
   if (!firefox_felt_resolve_console_address(&serverUrl, &feltJsonPath,
                                             &resolvedUrl)) {

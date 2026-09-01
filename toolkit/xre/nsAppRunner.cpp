@@ -4964,7 +4964,14 @@ int XREMain::XRE_mainInit(bool* aExitFlag,
     // builds the dialog then runs again below. CheckArg removes the flag from
     // gArgv before gRestartArgv is derived from it, so the post-dialog
     // relaunch does not clear the freshly saved address again.
-    XRE_ClearStoredEnterpriseConsoleUrl();
+    if (NS_FAILED(XRE_ClearStoredEnterpriseConsoleUrl())) {
+      // The user asked for the reset explicitly, so failing to perform it
+      // must be visible: the stored address stays in effect and the setup
+      // dialog will not run again.
+      Output(true,
+             "Could not reset the console address; the stored address remains "
+             "in effect.\n");
+    }
   }
   {
     // AutoConfig only evaluates firefox.cfg once the pref service is up in
@@ -4972,14 +4979,16 @@ int XREMain::XRE_mainInit(bool* aExitFlag,
     // enterprise.console.address pref. Read the file directly here to learn
     // before profile selection whether it holds the generic console
     // placeholder with no resolvable address, in which case XRE_mainStartup
-    // shows the console setup dialog. Otherwise
-    // ignoring nsresult; XRE_mainRun derives the URLs from the evaluated
-    // pref either way.
+    // shows the console setup dialog. A read failure only warns: XRE_mainRun
+    // derives the URLs from the evaluated pref either way.
     nsAutoCString consoleAddress;
     rv = XRE_ReadEnterpriseConsoleAddress(*mAppData, consoleAddress);
-    if (NS_SUCCEEDED(rv) &&
-        XRE_ParseEnterpriseServerURL(*mAppData, consoleAddress.get()) ==
-            NS_ERROR_NOT_AVAILABLE) {
+    if (NS_FAILED(rv)) {
+      NS_WARNING(
+          "Could not read the enterprise console address from the AutoConfig "
+          "file; enterprise server URLs may stay unset");
+    } else if (XRE_ParseEnterpriseServerURL(*mAppData, consoleAddress.get()) ==
+               NS_ERROR_NOT_AVAILABLE) {
       gEnterpriseConsoleSetupNeeded = true;
     }
   }
@@ -6752,12 +6761,22 @@ nsresult XREMain::XRE_mainRun() {
       nsAutoCString consoleAddress;
       rv =
           Preferences::GetCString("enterprise.console.address", consoleAddress);
-      if (NS_SUCCEEDED(rv)) {
-        XRE_ParseEnterpriseServerURL(*mAppData, consoleAddress.get());
-        if (mAppData->crashReporterURL) {
-          CrashReporter::SetServerURL(
-              nsDependentCString(mAppData->crashReporterURL));
-        }
+      if (NS_FAILED(rv)) {
+        NS_WARNING(
+            "enterprise.console.address is not set; enterprise server URLs "
+            "stay unset");
+      } else if (NS_FAILED(XRE_ParseEnterpriseServerURL(
+                     *mAppData, consoleAddress.get()))) {
+        // Reachable when the pref holds the generic build placeholder and
+        // the setup dialog was skipped (e.g. under MOZ_AUTOMATION without
+        // MOZ_ENTERPRISE_CONSOLE_URL): crash reports and updates have no
+        // endpoint to go to.
+        NS_WARNING(
+            "Could not derive the enterprise server URLs from the console "
+            "address");
+      } else if (mAppData->crashReporterURL) {
+        CrashReporter::SetServerURL(
+            nsDependentCString(mAppData->crashReporterURL));
       }
     }
 #endif

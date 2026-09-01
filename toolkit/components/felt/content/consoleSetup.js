@@ -29,6 +29,11 @@ function parseConsoleAddress(value) {
 
 let saving = false;
 
+function showError(errorBar, l10nId) {
+  document.l10n.setAttributes(errorBar, l10nId);
+  errorBar.hidden = false;
+}
+
 async function save(paramBlock, addressInput, saveBtn, errorBar) {
   if (saving) {
     return;
@@ -36,7 +41,7 @@ async function save(paramBlock, addressInput, saveBtn, errorBar) {
 
   const address = parseConsoleAddress(addressInput.value);
   if (!address) {
-    errorBar.hidden = false;
+    showError(errorBar, "felt-console-setup-invalid-address");
     return;
   }
 
@@ -48,6 +53,7 @@ async function save(paramBlock, addressInput, saveBtn, errorBar) {
     await FeltStorage.persistConsoleAddress(address);
   } catch (e) {
     console.error("Failed to persist the console address", e);
+    showError(errorBar, "felt-console-setup-save-failed");
     saving = false;
     saveBtn.disabled = false;
     return;

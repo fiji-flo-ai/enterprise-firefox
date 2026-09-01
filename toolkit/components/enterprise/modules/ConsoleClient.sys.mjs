@@ -159,6 +159,13 @@ export const ConsoleClient = {
           Services.prefs.addObserver(CONSOLE_ADDRESS_PREF, consolePrefObserver);
         }
       });
+      // A failure (e.g. felt.json unreadable at that instant) must not be
+      // cached for the rest of the session: clear the slot so the next
+      // access retries the resolution. Callers still see the rejection.
+      this._consoleUriReadyPromise.catch(e => {
+        lazy.log.error("Failed to resolve the console address", e);
+        this._consoleUriReadyPromise = null;
+      });
     }
     return this._consoleUriReadyPromise.then(url => new URL(url));
   },
