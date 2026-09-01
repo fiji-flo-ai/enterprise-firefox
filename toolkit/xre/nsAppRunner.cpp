@@ -4959,6 +4959,10 @@ int XREMain::XRE_mainInit(bool* aExitFlag,
   }
 
 #if defined(MOZ_ENTERPRISE)
+  // The flag allows to trigger again the dialog, if autoconfig file contains
+  // the placeholder value. It should be safe enough on shippable builds where
+  // the autoconfig file is part of the distribution and thus should be immune
+  // to any change.
   if (CheckArg("reset-console-address") == ARG_FOUND) {
     // Forget the address entered in the console setup dialog. On generic
     // builds the dialog then runs again below. CheckArg removes the flag from
