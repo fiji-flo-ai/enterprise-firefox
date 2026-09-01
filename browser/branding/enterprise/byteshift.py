@@ -6,7 +6,10 @@ import buildconfig
 
 # Byte shift value applied to AutoConfig files. Must match the default of the
 # general.config.obscure_value preference, which the browser subtracts when
-# reading the file.
+# reading the file, and DEFAULT_OBSCURE_VALUE in the enterprise-console crate
+# (toolkit/components/enterprise/rust), which decodes the file for the early
+# startup and crash reporter consumers. The generic console address
+# placeholder below is CONSOLE_ADDRESS_PLACEHOLDER in that crate.
 OBSCURE_VALUE = 13
 
 

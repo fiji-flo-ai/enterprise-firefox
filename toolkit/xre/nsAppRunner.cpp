@@ -3462,10 +3462,9 @@ static ReturnAbortOnError ShowProfileSelector(
 
 #if defined(MOZ_ENTERPRISE)
 // Modal pre-profile dialog asking for the enterprise console address on
-// generic builds (the AutoConfig file holds ENTERPRISE_CONSOLE_PLACEHOLDER
+// generic builds (the AutoConfig file holds the generic console placeholder
 // and nothing is persisted yet). The dialog stores the address in felt.json,
-// then
-// this relaunches so the very early startup consumers (crash reporter URL,
+// then this relaunches so the very early startup consumers (crash reporter URL,
 // update URL, FELT connection) see the configured value from the start.
 // Modeled on ShowProfileDialog.
 static ReturnAbortOnError ShowEnterpriseConsoleSetup(
@@ -4426,7 +4425,7 @@ static void MakeOrSetMinidumpPath(nsIFile* profD) {
 const XREAppData* gAppData = nullptr;
 
 #if defined(MOZ_ENTERPRISE)
-// Set when the AutoConfig file holds ENTERPRISE_CONSOLE_PLACEHOLDER and no
+// Set when the AutoConfig file holds the generic console placeholder and no
 // console address has been persisted yet; XRE_mainStartup then runs the
 // console setup dialog (FELT UI only).
 static bool gEnterpriseConsoleSetupNeeded = false;
@@ -4971,9 +4970,9 @@ int XREMain::XRE_mainInit(bool* aExitFlag,
     // AutoConfig only evaluates firefox.cfg once the pref service is up in
     // XRE_mainRun, where the server URLs are derived from the
     // enterprise.console.address pref. Read the file directly here to learn
-    // before profile selection whether it holds
-    // ENTERPRISE_CONSOLE_PLACEHOLDER with no resolvable address, in which
-    // case XRE_mainStartup shows the console setup dialog. Otherwise
+    // before profile selection whether it holds the generic console
+    // placeholder with no resolvable address, in which case XRE_mainStartup
+    // shows the console setup dialog. Otherwise
     // ignoring nsresult; XRE_mainRun derives the URLs from the evaluated
     // pref either way.
     nsAutoCString consoleAddress;

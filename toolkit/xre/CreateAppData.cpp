@@ -21,7 +21,6 @@
 #  include "mozilla/URLPreloader.h"
 #  include "nsXREDirProvider.h"
 #  include "nsString.h"
-#  include "prenv.h"
 #endif
 
 using namespace mozilla;
@@ -127,35 +126,13 @@ nsresult XRE_ReadEnterpriseConsoleAddress(const XREAppData& aAppData,
 
   nsCString obscured = MOZ_TRY(URLPreloader::ReadFile(cfgFile));
 
-  // AutoConfig files ship byte shifted by the default value of the
-  // general.config.obscure_value pref. Keep in sync with OBSCURE_VALUE in
-  // browser/branding/enterprise/byteshift.py.
-  constexpr uint8_t kObscureValue = 13;
-  nsCString source;
-  source.SetLength(obscured.Length());
-  char* decoded = source.BeginWriting();
-  for (uint32_t i = 0; i < obscured.Length(); ++i) {
-    decoded[i] = char(uint8_t(obscured.CharAt(i)) - kObscureValue);
-  }
-
-  // Light-weight extraction of the second argument of the
-  // lockPref/defaultPref call setting the address; full AutoConfig
-  // evaluation only happens in XRE_mainRun.
-  constexpr auto kPrefName = "\"enterprise.console.address\""_ns;
-  int32_t pos = source.Find(kPrefName);
-  if (pos == kNotFound) {
+  // Byte shift decoding and light-weight extraction of the pref value happen
+  // in the shared enterprise-console crate; full AutoConfig evaluation only
+  // happens in XRE_mainRun.
+  if (!firefox_felt_console_address_from_autoconfig(&obscured,
+                                                    &aConsoleAddress)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-  int32_t valueStart = source.FindChar('"', pos + kPrefName.Length());
-  if (valueStart == kNotFound) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  ++valueStart;
-  int32_t valueEnd = source.FindChar('"', valueStart);
-  if (valueEnd == kNotFound) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  aConsoleAddress.Assign(Substring(source, valueStart, valueEnd - valueStart));
   return NS_OK;
 }
 
@@ -166,25 +143,20 @@ nsresult XRE_ParseEnterpriseServerURL(XREAppData& aAppData,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  if (serverUrl.EqualsLiteral(ENTERPRISE_CONSOLE_PLACEHOLDER)) {
-    // Generic (non-repacked) build: the repack did not bake in a console
-    // address, so use the test override or the URL persisted by the console
-    // setup dialog. If neither exists the caller shows that dialog.
-    const char* envUrl = PR_GetEnv("MOZ_ENTERPRISE_CONSOLE_ADDRESS");
-    if (envUrl && *envUrl) {
-      serverUrl.Assign(envUrl);
-    } else {
-      nsCString path;
-      nsresult rv = GetFeltStorageFilePath(path);
-      NS_ENSURE_SUCCESS(rv, rv);
-      nsCString storedUrl;
-      if (!firefox_felt_read_stored_console_url(&path, &storedUrl) ||
-          storedUrl.IsEmpty()) {
-        return NS_ERROR_NOT_AVAILABLE;
-      }
-      serverUrl = storedUrl;
-    }
+  // On a generic (non-repacked) build the address is the placeholder baked in
+  // by the branding; the shared enterprise-console crate resolves it from the
+  // test override environment variable or the URL persisted by the console
+  // setup dialog. If neither exists the caller shows that dialog. A real
+  // address passes through unchanged. The path computation is best effort:
+  // it is only read when the placeholder has to be resolved from felt.json.
+  nsCString feltJsonPath;
+  (void)GetFeltStorageFilePath(feltJsonPath);
+  nsCString resolvedUrl;
+  if (!firefox_felt_resolve_console_address(&serverUrl, &feltJsonPath,
+                                            &resolvedUrl)) {
+    return NS_ERROR_NOT_AVAILABLE;
   }
+  serverUrl = resolvedUrl;
 
   if (serverUrl.Last() != '/') {
     serverUrl.Append('/');

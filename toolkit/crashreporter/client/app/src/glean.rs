@@ -115,6 +115,11 @@ impl InitOptions {
     fn init_glean(self) -> anyhow::Result<crashping::InitGlean> {
         #[cfg(all(not(mock), feature = "enterprise"))]
         let server_url = self.server_url;
+        // The crash reporter data directory ("Crash Reports" in the user
+        // application data directory), kept to locate felt.json on generic
+        // enterprise builds.
+        #[cfg(all(not(mock), feature = "enterprise"))]
+        let reports_data_dir = self.data_dir.clone();
         let mut data_dir = if cfg!(mock) {
             // Use a (non-mocked) temp directory since glean won't access our mocked API.
             ::std::env::temp_dir().join("crashreporter-mock")
@@ -150,9 +155,11 @@ impl InitOptions {
         }
         #[cfg(all(not(mock), feature = "enterprise"))]
         {
-            init_glean.configuration.server_endpoint = Some(
-                crate::enterprise_prefs::console_glean_url(server_url.as_deref())?,
-            );
+            init_glean.configuration.server_endpoint =
+                Some(crate::enterprise_prefs::console_glean_url(
+                    server_url.as_deref(),
+                    Some(&reports_data_dir),
+                )?);
         }
 
         Ok(init_glean)

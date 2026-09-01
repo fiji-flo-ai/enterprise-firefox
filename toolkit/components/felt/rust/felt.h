@@ -37,6 +37,13 @@ bool firefox_felt_read_stored_console_url(const nsACString* aFeltJsonPath,
 
 bool firefox_felt_clear_stored_console_url(const nsACString* aFeltJsonPath);
 
+bool firefox_felt_console_address_from_autoconfig(const nsACString* aContents,
+                                                  nsACString* aOutAddress);
+
+bool firefox_felt_resolve_console_address(const nsACString* aAddress,
+                                          const nsACString* aFeltJsonPath,
+                                          nsACString* aOutUrl);
+
 nsresult felt_constructor(REFNSIID iid, void** result);
 
 nsresult felt_restartforced_constructor(REFNSIID iid, void** result);

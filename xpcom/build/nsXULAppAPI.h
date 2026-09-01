@@ -251,28 +251,22 @@ nsresult XRE_ParseAppData(nsIFile* aINIFile, mozilla::XREAppData& aAppData);
 
 #if defined(MOZ_ENTERPRISE)
 /**
- * Placeholder value for enterprise.console.address in the AutoConfig file
- * (firefox.cfg) marking a generic build whose console address was not baked
- * in by a repack. Such builds resolve the address from the
- * MOZ_ENTERPRISE_CONSOLE_ADDRESS environment variable or from the value
- * persisted in felt.json by the console setup dialog, which is shown when
- * neither exists. Keep in sync with CONSOLE_ADDRESS_PLACEHOLDER in
- * ConsoleClient.sys.mjs.
- */
-#  define ENTERPRISE_CONSOLE_PLACEHOLDER "FIREFOX_ENTERPRISE_GENERIC"
-
-/**
  * Use the enterprise console address to build the crash report and update URLs
  * to set in an existing nsXREAppData structure.
  *
  * @param aAppData The nsXREAppData structure on which to set the
  * crashReporterURL.
  *
- * @param aServerUrl Enterprise console address. Fails if empty.
+ * @param aServerUrl Enterprise console address. Fails if empty. On generic
+ * (non-repacked) builds this is the placeholder from the AutoConfig file,
+ * resolved by the enterprise-console crate
+ * (toolkit/components/enterprise/rust) from the
+ * MOZ_ENTERPRISE_CONSOLE_ADDRESS environment variable or from the value
+ * persisted in felt.json by the console setup dialog.
  *
- * @return NS_ERROR_NOT_AVAILABLE when aServerUrl is
- * ENTERPRISE_CONSOLE_PLACEHOLDER and no stored or environment-provided
- * address exists yet; the caller is expected to run the console setup dialog.
+ * @return NS_ERROR_NOT_AVAILABLE when aServerUrl is the generic build
+ * placeholder and no stored or environment-provided address exists yet; the
+ * caller is expected to run the console setup dialog.
  */
 nsresult XRE_ParseEnterpriseServerURL(mozilla::XREAppData& aAppData,
                                       const char* aServerUrl);

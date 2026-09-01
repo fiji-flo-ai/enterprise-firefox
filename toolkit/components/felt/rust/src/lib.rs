@@ -18,7 +18,6 @@ extern crate thin_vec;
 
 mod client;
 mod components;
-mod message;
 mod edr_checker;
 #[cfg(target_os = "linux")]
 mod edr_checker_linux;
@@ -26,6 +25,7 @@ mod edr_checker_linux;
 mod edr_checker_macos;
 #[cfg(target_os = "windows")]
 mod edr_checker_win;
+mod message;
 mod utils;
 
 pub use utils::{CONSOLE_URL, TOKENS};
@@ -154,11 +154,6 @@ pub extern "C" fn firefox_felt_is_startup_complete() -> bool {
     }
 }
 
-fn read_felt_json(path: &str) -> Option<serde_json::Value> {
-    let bytes = std::fs::read(path).ok()?;
-    serde_json::from_slice(&bytes).ok()
-}
-
 /// Read the console URL persisted in felt.json (UAppData) by the console
 /// setup dialog. Returns false when the file or the key is absent, which the
 /// caller treats as "setup needed".
@@ -168,15 +163,15 @@ pub extern "C" fn firefox_felt_read_stored_console_url(
     out_url: &mut nsstring::nsACString,
 ) -> bool {
     let path = path.to_utf8();
-    let Some(json) = read_felt_json(&path) else {
+    let Ok(bytes) = std::fs::read(&*path) else {
         return false;
     };
-    match json.get("consoleAddress").and_then(|v| v.as_str()) {
-        Some(url) if !url.is_empty() => {
-            out_url.assign(url);
+    match enterprise_console::stored_console_address(&bytes) {
+        Some(url) => {
+            out_url.assign(&url);
             true
         }
-        _ => false,
+        None => false,
     }
 }
 
@@ -185,16 +180,59 @@ pub extern "C" fn firefox_felt_read_stored_console_url(
 #[no_mangle]
 pub extern "C" fn firefox_felt_clear_stored_console_url(path: &nsstring::nsACString) -> bool {
     let path = path.to_utf8();
-    let Some(mut json) = read_felt_json(&path) else {
+    let Ok(bytes) = std::fs::read(&*path) else {
         return true;
     };
-    let Some(obj) = json.as_object_mut() else {
-        return false;
-    };
-    if obj.remove("consoleAddress").is_none() {
-        return true;
+    use enterprise_console::RemoveStoredAddress;
+    match enterprise_console::remove_stored_console_address(&bytes) {
+        RemoveStoredAddress::AlreadyAbsent => true,
+        RemoveStoredAddress::Invalid => false,
+        RemoveStoredAddress::Removed(json) => std::fs::write(&*path, json).is_ok(),
     }
-    std::fs::write(&*path, json.to_string()).is_ok()
+}
+
+/// Extract the console address from raw AutoConfig file contents (byte shift
+/// decoded, not evaluated). Backs XRE_ReadEnterpriseConsoleAddress.
+#[no_mangle]
+pub extern "C" fn firefox_felt_console_address_from_autoconfig(
+    contents: &nsstring::nsACString,
+    out_address: &mut nsstring::nsACString,
+) -> bool {
+    match enterprise_console::console_address_from_autoconfig(contents) {
+        Some(address) => {
+            out_address.assign(&address);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Resolve a console address that may be the generic build placeholder, from
+/// the MOZ_ENTERPRISE_CONSOLE_ADDRESS environment variable or the URL
+/// persisted in felt.json at the given path. A real address is returned
+/// unchanged. Returns false when the placeholder cannot be resolved; the
+/// caller then shows the console setup dialog. Backs
+/// XRE_ParseEnterpriseServerURL.
+#[no_mangle]
+pub extern "C" fn firefox_felt_resolve_console_address(
+    address: &nsstring::nsACString,
+    felt_json_path: &nsstring::nsACString,
+    out_url: &mut nsstring::nsACString,
+) -> bool {
+    let path = felt_json_path.to_utf8();
+    match enterprise_console::resolve_console_address(
+        &address.to_utf8(),
+        std::env::var(enterprise_console::CONSOLE_ADDRESS_ENV)
+            .ok()
+            .as_deref(),
+        || std::fs::read(&*path).ok(),
+    ) {
+        Some(url) => {
+            out_url.assign(&url);
+            true
+        }
+        None => false,
+    }
 }
 
 #[no_mangle]
