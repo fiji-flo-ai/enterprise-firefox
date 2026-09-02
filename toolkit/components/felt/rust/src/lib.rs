@@ -154,38 +154,6 @@ pub extern "C" fn firefox_felt_is_startup_complete() -> bool {
     }
 }
 
-/// Read the console URL persisted in felt.json (UAppData) by the console
-/// setup dialog. Returns false when the file or the key is absent, which the
-/// caller treats as "setup needed".
-#[no_mangle]
-pub extern "C" fn firefox_felt_read_stored_console_url(
-    path: &nsstring::nsACString,
-    out_url: &mut nsstring::nsACString,
-) -> bool {
-    let path = path.to_utf8();
-    let bytes = match std::fs::read(&*path) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                log::warn!("could not read the stored console URL from {path}: {e}");
-            }
-            return false;
-        }
-    };
-    match enterprise_console::stored_console_address(&bytes) {
-        Ok(url) => {
-            out_url.assign(&url);
-            true
-        }
-        Err(e) => {
-            if !e.is_expected_first_run() {
-                log::warn!("could not read the stored console URL from {path}: {e}");
-            }
-            false
-        }
-    }
-}
-
 /// Remove the persisted console URL from felt.json, keeping the other keys.
 /// Returns true when the value is gone (including when it was never there);
 /// false when the file could not be read or updated, so the stale URL may

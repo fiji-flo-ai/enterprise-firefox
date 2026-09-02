@@ -15,7 +15,7 @@ export const FeltStorage = {
   _initialized: false,
 
   /**
-   * Absolute path to the felt.json file in the current profile.
+   * Absolute path to the felt.json file in UAppData.
    *
    * @type {string}
    */

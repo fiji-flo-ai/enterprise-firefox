@@ -121,6 +121,6 @@ felt-console-setup-invalid-address =
 felt-console-setup-save-failed =
     .message = The address couldn’t be saved. Please try again, or contact your administrator if the problem persists.
 felt-console-setup-save-btn =
-    .label = Save and Restart
+    .label = Save and restart
 felt-console-setup-quit-btn =
     .label = Quit
