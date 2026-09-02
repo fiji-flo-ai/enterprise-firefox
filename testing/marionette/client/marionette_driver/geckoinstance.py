@@ -445,7 +445,7 @@ class GeckoInstance:
         # start unconfigured (or block on the console setup dialog) under
         # Marionette. Set it to the empty string to exercise the unconfigured
         # state.
-        env.setdefault("MOZ_ENTERPRISE_CONSOLE_URL", "http://127.0.0.1:1")
+        env.setdefault("MOZ_ENTERPRISE_CONSOLE_URL", "https://127.0.0.1:1")
 
         args = {
             "binary": self.binary,

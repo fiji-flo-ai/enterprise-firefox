@@ -106,7 +106,7 @@ def test_environment(
     # harness. A closed local port, because non-local connections are
     # disabled above. Set it to the empty string to exercise the
     # unconfigured state.
-    env.setdefault("MOZ_ENTERPRISE_CONSOLE_URL", "http://127.0.0.1:1")
+    env.setdefault("MOZ_ENTERPRISE_CONSOLE_URL", "https://127.0.0.1:1")
 
     # Only enable verbose WebRTC logging in CI.
     if "MOZ_AUTOMATION" in os.environ:

@@ -95,7 +95,7 @@ class FeltConsoleError(FeltConsoleErrorBase):
             },
             default_branch=True,
         ):
-            self.login_location.value = "http://127.0.0.1:1"
+            self.login_location.value = "https://127.0.0.1:1"
             self.submit_email()
 
             self.assert_error_bar_message(
@@ -106,7 +106,7 @@ class FeltConsoleError(FeltConsoleErrorBase):
             )
 
         self.assert_xhrerror(
-            login_location="http://127.0.0.1:1",
+            login_location="https://127.0.0.1:1",
             expected_heading="Unable to connect",
             selector=".felt-browser-error-connection",
             error_msg="Unknown network error",
