@@ -42,12 +42,12 @@ const GLEAN_SUBMIT_PATH: &str = "api/browser/telemetry";
 /// (missing, or a domainless placeholder such as `/submit?...`) constructs the
 /// endpoint from the enterprise console address.
 ///
-/// `data_dir` is the crash reporter data directory (`Crash Reports` inside
-/// the user application data directory), used to locate `felt.json` on
-/// generic builds.
+/// `app_data_dir` is the user application data directory (the top-level
+/// Firefox directory holding `profiles.ini` and the profiles), where
+/// `felt.json` is stored on generic builds.
 pub fn console_report_url(
     server_url: Option<&str>,
-    data_dir: Option<&Path>,
+    app_data_dir: Option<&Path>,
 ) -> anyhow::Result<String> {
     if let Some(server_url) = server_url {
         if Url::parse(server_url).is_ok() {
@@ -56,7 +56,7 @@ pub fn console_report_url(
     }
     Ok(format!(
         "{}/{}",
-        console_base(None, data_dir)?,
+        console_base(None, app_data_dir)?,
         CRASH_SUBMIT_PATH
     ))
 }
@@ -64,12 +64,13 @@ pub fn console_report_url(
 /// Construct the Glean telemetry endpoint from the enterprise console address.
 ///
 /// `server_url` is the `ServerURL` crash annotation, when available.
-/// `data_dir` is the crash reporter data directory, see [`console_report_url`].
+/// `app_data_dir` is the user application data directory, see
+/// [`console_report_url`].
 pub fn console_glean_url(
     server_url: Option<&str>,
-    data_dir: Option<&Path>,
+    app_data_dir: Option<&Path>,
 ) -> anyhow::Result<String> {
-    let base = console_base(server_url, data_dir)?;
+    let base = console_base(server_url, app_data_dir)?;
     let mut url = Url::parse(&base)?;
     url.set_path(&format!(
         "{}/{}",
@@ -85,9 +86,9 @@ pub fn console_glean_url(
 /// 1. `server_url` (the `ServerURL` crash annotation, i.e. the submission
 ///    endpoint) by stripping the submission path back to the base;
 /// 2. the AutoConfig file; when it holds the generic build placeholder, the
-///    environment variable and then the felt storage file next to `data_dir`
+///    environment variable and then the felt storage file in `app_data_dir`
 ///    (see the enterprise-console crate).
-fn console_base(server_url: Option<&str>, data_dir: Option<&Path>) -> anyhow::Result<String> {
+fn console_base(server_url: Option<&str>, app_data_dir: Option<&Path>) -> anyhow::Result<String> {
     if let Some(server_url) = server_url {
         let trimmed = server_url.trim_end_matches('/');
         if let Some(base) = trimmed.strip_suffix(CRASH_SUBMIT_PATH) {
@@ -97,10 +98,10 @@ fn console_base(server_url: Option<&str>, data_dir: Option<&Path>) -> anyhow::Re
     let address = autoconfig_console_address()?;
     let env_value = crate::std::env::var(CONSOLE_ADDRESS_ENV).ok();
     let base = resolve_console_address(&address, env_value.as_deref(), || {
-        let dir = data_dir.and_then(|dir| dir.parent()).ok_or_else(|| {
+        let dir = app_data_dir.ok_or_else(|| {
             crate::std::io::Error::new(
                 crate::std::io::ErrorKind::NotFound,
-                "no data directory to locate the felt storage file",
+                "no application data directory to locate the felt storage file",
             )
         })?;
         crate::std::fs::read(&dir.join(FELT_STORAGE_FILENAME))
@@ -163,7 +164,6 @@ mod test {
         mock_files.add_dir("work_dir");
         mock_files.add_file("work_dir/firefox.cfg", encode(GENERIC_CFG));
         mock_files.add_dir("app_data");
-        mock_files.add_dir("app_data/Crash Reports");
         if let Some(felt_json) = felt_json {
             mock_files.add_file("app_data/felt.json", felt_json);
         }
@@ -225,7 +225,7 @@ mod test {
             },
             || {
                 assert_eq!(
-                    console_base(None, Some((&"app_data/Crash Reports").as_ref())).unwrap(),
+                    console_base(None, Some((&"app_data").as_ref())).unwrap(),
                     "https://env.example.com"
                 );
             },
@@ -239,7 +239,7 @@ mod test {
             |_| {},
             || {
                 assert_eq!(
-                    console_base(None, Some((&"app_data/Crash Reports").as_ref())).unwrap(),
+                    console_base(None, Some((&"app_data").as_ref())).unwrap(),
                     "https://stored.example.com"
                 );
             },
@@ -252,13 +252,13 @@ mod test {
             Some(r#"{"deviceId": "abc"}"#),
             |_| {},
             || {
-                assert!(console_base(None, Some((&"app_data/Crash Reports").as_ref())).is_err());
+                assert!(console_base(None, Some((&"app_data").as_ref())).is_err());
             },
         );
     }
 
     #[test]
-    fn console_base_generic_errors_without_data_dir() {
+    fn console_base_generic_errors_without_app_data_dir() {
         with_generic_autoconfig(
             Some(r#"{"consoleAddress": "https://stored.example.com/"}"#),
             |_| {},
