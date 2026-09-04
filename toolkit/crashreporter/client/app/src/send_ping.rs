@@ -31,20 +31,23 @@ pub fn main() {
     #[cfg(all(not(mock), feature = "enterprise"))]
     let app_data_dir = app_data_dir(&data_path);
 
-    let _glean_handle = glean::InitOptions {
+    #[cfg_attr(any(mock, not(feature = "enterprise")), allow(unused_mut))]
+    let mut options = glean::InitOptions {
         data_dir: data_path.into(),
         locale: None,
         // Assume that this is only invoked to send a ping when upload is enabled.
         upload_enabled: true,
-        // No annotation available here; the console address is read from
-        // AutoConfig during init.
-        #[cfg(all(not(mock), feature = "enterprise"))]
         server_url: None,
-        #[cfg(all(not(mock), feature = "enterprise"))]
-        app_data_dir,
-    }
-    .init()
-    .expect("failed to acquire Glean store");
+    };
+    // No `ServerURL` annotation is available here, so the endpoint is derived
+    // from the console address in AutoConfig (or, on generic builds, the
+    // environment variable or felt.json).
+    #[cfg(all(not(mock), feature = "enterprise"))]
+    options.set_server_url(
+        crate::enterprise_prefs::console_glean_url(None, app_data_dir.as_deref())
+            .expect("failed to resolve the enterprise telemetry endpoint"),
+    );
+    let _glean_handle = options.init().expect("failed to acquire Glean store");
 
     ping::CrashPing {
         extra: &extra,
@@ -73,17 +76,19 @@ pub fn cleanup_main() {
     #[cfg(all(not(mock), feature = "enterprise"))]
     let app_data_dir = app_data_dir(&data_path);
 
-    let _glean_handle = glean::InitOptions {
+    #[cfg_attr(any(mock, not(feature = "enterprise")), allow(unused_mut))]
+    let mut options = glean::InitOptions {
         data_dir: data_path.into(),
         locale: None,
         upload_enabled,
-        #[cfg(all(not(mock), feature = "enterprise"))]
         server_url: None,
-        #[cfg(all(not(mock), feature = "enterprise"))]
-        app_data_dir,
-    }
-    .init()
-    .expect("failed to acquire Glean store");
+    };
+    #[cfg(all(not(mock), feature = "enterprise"))]
+    options.set_server_url(
+        crate::enterprise_prefs::console_glean_url(None, app_data_dir.as_deref())
+            .expect("failed to resolve the enterprise telemetry endpoint"),
+    );
+    let _glean_handle = options.init().expect("failed to acquire Glean store");
 
     // Sleep for a short period for Glean to do its thing in the background (and so that
     // `glean::shutdown()` won't log a warning about waiting for init to complete).
