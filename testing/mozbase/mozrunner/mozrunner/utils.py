@@ -101,13 +101,6 @@ def test_environment(
     # override the user's choice here.  See bug 1049688.
     env.setdefault("MOZ_DISABLE_NONLOCAL_CONNECTIONS", "1")
 
-    # Give enterprise builds a console address so generic builds never start
-    # unconfigured (or block on the console setup dialog) under a test
-    # harness. A closed local port, because non-local connections are
-    # disabled above. Set it to the empty string to exercise the
-    # unconfigured state.
-    env.setdefault("MOZ_ENTERPRISE_CONSOLE_URL", "https://127.0.0.1:1")
-
     # Only enable verbose WebRTC logging in CI.
     if "MOZ_AUTOMATION" in os.environ:
         env.setdefault("MOZ_LOG", "signaling:3,mtransport:4,DataChannel:3,jsep:4")

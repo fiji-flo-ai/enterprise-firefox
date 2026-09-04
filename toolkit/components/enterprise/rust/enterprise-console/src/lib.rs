@@ -5,7 +5,7 @@
 //! Shared logic for obtaining the enterprise console address.
 //!
 //! A repack bakes the console address into the AutoConfig file
-//! (`firefox.cfg`); on generic (non-repacked) builds the file holds
+//! (`firefox.cfg`); on generic builds the file holds
 //! [`CONSOLE_ADDRESS_PLACEHOLDER`] instead, and the address is resolved from
 //! the [`CONSOLE_ADDRESS_ENV`] environment variable or from the value the
 //! console setup dialog persisted in `felt.json`. This crate keeps that

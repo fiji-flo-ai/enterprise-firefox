@@ -14,6 +14,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 export const FeltStorage = {
   _initialized: false,
 
+  _feltStorage: null,
   /**
    * Absolute path to the felt.json file in UAppData.
    *
