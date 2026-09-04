@@ -123,12 +123,13 @@ add_task(async function test_waits_for_pref_to_appear() {
   Services.env.set(ENV_VAR, "");
   Services.prefs.clearUserPref(CONSOLE_ADDRESS_PREF);
 
-  const promise = ConsoleClient.consoleBaseURI.then((url) =>
-  Assert.equal(
-    url.href,
-    "https://late.example.com/",
-    "The address resolves once the pref appears"
-  ));
+  const promise = ConsoleClient.consoleBaseURI.then(url =>
+    Assert.equal(
+      url.href,
+      "https://late.example.com/",
+      "The address resolves once the pref appears"
+    )
+  );
 
   Services.prefs.setStringPref(
     CONSOLE_ADDRESS_PREF,
