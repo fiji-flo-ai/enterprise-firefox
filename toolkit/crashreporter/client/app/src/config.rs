@@ -295,6 +295,7 @@ impl Config {
         // ServerURL annotation. Before the browser derives it from the console
         // address (e.g. a startup crash) it is still the domainless placeholder
         // from application.ini (`/submit?...`), so fall back to reading the
+        // console address from AutoConfig when the annotation isn't usable.
         #[cfg(feature = "enterprise")]
         {
             let current = self.report_url.as_deref().and_then(OsStr::to_str);

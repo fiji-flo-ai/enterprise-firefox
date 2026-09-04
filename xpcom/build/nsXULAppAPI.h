@@ -283,7 +283,7 @@ nsresult XRE_ReadEnterpriseConsoleAddress(const mozilla::XREAppData& aAppData,
 
 /**
  * Remove the console address persisted in felt.json so the console setup
- * dialog runs again on a generic build. Backs the --reset-console-address
+ * dialog runs again on a generic build. Backs the --reset-console-url
  * command line flag.
  */
 nsresult XRE_ClearStoredEnterpriseConsoleUrl();

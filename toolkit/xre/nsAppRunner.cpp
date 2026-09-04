@@ -4963,7 +4963,7 @@ int XREMain::XRE_mainInit(bool* aExitFlag,
   // the placeholder value. It should be safe enough on shippable builds where
   // the autoconfig file is part of the distribution and thus should be immune
   // to any change.
-  if (CheckArg("reset-console-address") == ARG_FOUND) {
+  if (CheckArg("reset-console-url") == ARG_FOUND) {
     // Forget the address entered in the console setup dialog. On generic
     // builds the dialog then runs again below. CheckArg removes the flag from
     // gArgv before gRestartArgv is derived from it, so the post-dialog
