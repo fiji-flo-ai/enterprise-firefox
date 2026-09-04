@@ -129,7 +129,7 @@ class EnterpriseTestsBase(MarionetteTestCase):
             self.marionette.instance.prefs = None
 
         del os.environ["MOZ_DISABLE_NONLOCAL_CONNECTIONS"]
-        del os.environ[{"MOZ_ENTERPRISE_CONSOLE_URL"]
+        del os.environ["MOZ_ENTERPRISE_CONSOLE_URL"]
 
         self.marionette.quit(in_app=False, clean=True)
 
