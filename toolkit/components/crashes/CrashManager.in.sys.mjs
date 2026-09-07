@@ -37,11 +37,10 @@ let lastSendPing = Promise.resolve();
 function sendGleanPing(reason, annotations) {
   const doSendPing = async () => {
     const uAppDataPath = Services.dirsvc.get("UAppData", Ci.nsIFile).path;
-    const crashDataPath = PathUtils.join(uAppDataPath, "Crash Reports");
 
     const process = await lazy.Subprocess.call({
       command: lazy.CrashServiceUtils.getCrashReporterPath().path,
-      arguments: ["--send-ping", crashDataPath, reason],
+      arguments: ["--send-ping", uAppDataPath, reason],
       stderr: "stdout",
     });
 
@@ -89,7 +88,6 @@ function sendGleanPing(reason, annotations) {
  */
 async function cleanupPings() {
   const uAppDataPath = Services.dirsvc.get("UAppData", Ci.nsIFile).path;
-  const crashDataPath = PathUtils.join(uAppDataPath, "Crash Reports");
   const telemetryEnabled = Services.prefs.getBoolPref(
     "datareporting.healthreport.uploadEnabled",
     true
@@ -97,7 +95,7 @@ async function cleanupPings() {
 
   const process = await lazy.Subprocess.call({
     command: lazy.CrashServiceUtils.getCrashReporterPath().path,
-    arguments: ["--ping-cleanup", crashDataPath, telemetryEnabled.toString()],
+    arguments: ["--ping-cleanup", uAppDataPath, telemetryEnabled.toString()],
   });
 
   const blocker = () => process.kill();

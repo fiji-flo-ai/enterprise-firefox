@@ -3,37 +3,30 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 //! An entry point for sending a crash ping.
+//!
+//! The program argument is the user application data directory (UAppData),
+//! which holds the crash data directory and, on enterprise builds, felt.json.
 
 use crate::std::{env, io::stdin};
 use crate::{glean, logging, net::ping};
 
-/// The user application data directory, derived from the crash data path.
-///
-/// `CrashManager` always passes `UAppData/Crash Reports`, so the parent of the
-/// given path is the directory holding `felt.json`.
-#[cfg(all(not(mock), feature = "enterprise"))]
-fn app_data_dir(data_path: &::std::ffi::OsStr) -> Option<::std::path::PathBuf> {
-    ::std::path::Path::new(data_path)
-        .parent()
-        .map(::std::path::Path::to_path_buf)
-}
+/// The crash data directory inside the user application data directory. Keep
+/// in sync with `Config::get_data_dir`.
+const CRASH_REPORTS_DIR: &str = "Crash Reports";
 
 pub fn main() {
     logging::init();
 
     let mut args = env::args_os().skip(2);
-    let data_path = args.next().expect("no data path provided");
+    let app_data_dir = ::std::path::PathBuf::from(args.next().expect("no app data path provided"));
     let reason = args.next().expect("no crash reason provided");
 
     let extra: serde_json::Value =
         serde_json::from_reader(stdin()).expect("failed to read extra data from stdin");
 
-    #[cfg(all(not(mock), feature = "enterprise"))]
-    let app_data_dir = app_data_dir(&data_path);
-
     #[cfg_attr(any(mock, not(feature = "enterprise")), allow(unused_mut))]
     let mut options = glean::InitOptions {
-        data_dir: data_path.into(),
+        data_dir: app_data_dir.join(CRASH_REPORTS_DIR),
         locale: None,
         // Assume that this is only invoked to send a ping when upload is enabled.
         upload_enabled: true,
@@ -45,7 +38,7 @@ pub fn main() {
     // environment variable or felt.json).
     #[cfg(all(not(mock), feature = "enterprise"))]
     options.set_server_url(
-        crate::enterprise_prefs::console_glean_url(None, app_data_dir.as_deref())
+        crate::enterprise_prefs::console_glean_url(None, Some(&app_data_dir))
             .expect("failed to resolve the enterprise telemetry endpoint"),
     );
     let _glean_handle = options.init().expect("failed to acquire Glean store");
@@ -65,7 +58,7 @@ pub fn cleanup_main() {
     logging::init();
 
     let mut args = env::args_os().skip(2);
-    let data_path = args.next().expect("no data path provided");
+    let app_data_dir = ::std::path::PathBuf::from(args.next().expect("no app data path provided"));
     let upload_enabled: bool = args
         .next()
         .expect("upload enabled missing")
@@ -74,12 +67,9 @@ pub fn cleanup_main() {
         .parse()
         .expect("invalid upload enabled value");
 
-    #[cfg(all(not(mock), feature = "enterprise"))]
-    let app_data_dir = app_data_dir(&data_path);
-
     #[cfg_attr(any(mock, not(feature = "enterprise")), allow(unused_mut))]
     let mut options = glean::InitOptions {
-        data_dir: data_path.into(),
+        data_dir: app_data_dir.join(CRASH_REPORTS_DIR),
         locale: None,
         upload_enabled,
         #[cfg(feature = "enterprise")]
@@ -87,7 +77,7 @@ pub fn cleanup_main() {
     };
     #[cfg(all(not(mock), feature = "enterprise"))]
     options.set_server_url(
-        crate::enterprise_prefs::console_glean_url(None, app_data_dir.as_deref())
+        crate::enterprise_prefs::console_glean_url(None, Some(&app_data_dir))
             .expect("failed to resolve the enterprise telemetry endpoint"),
     );
     let _glean_handle = options.init().expect("failed to acquire Glean store");
