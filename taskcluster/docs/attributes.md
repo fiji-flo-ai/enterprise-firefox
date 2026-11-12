@@ -222,6 +222,13 @@ number of the job. Note that this is a string!
 For the `l10n` and `shippable-l10n` kinds, this attribute contains an array of
 the individual locales this chunk is responsible for processing.
 
+## multilocales
+
+For the `shippable-l10n` kind and its signing, this attribute contains the
+names, among the locales of `all_locales`, which are multi-locale packages
+rather than locales. Such a name is repacked like a locale, with all the
+locales `multilocale-file` gives it in one package, and has no langpack.
+
 ## locale
 
 For jobs that operate on only one locale, we set the attribute `locale` to the

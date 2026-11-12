@@ -692,6 +692,7 @@ def make_job_description(config, jobs):
                             "dest": f"distribution/extensions/{loc}",
                         }
                         for loc in t.attributes["chunk_locales"]
+                        if loc not in t.attributes.get("multilocales", [])
                     ]
                 })
 

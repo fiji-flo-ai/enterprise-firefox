@@ -146,6 +146,7 @@ LOCALES_FILE = os.path.join(
     "locales",
     "l10n-changesets.json",
 )
+MULTILOCALE_FILE = os.path.join(os.path.dirname(LOCALES_FILE), "multilocale.json")
 
 # cache data at the module level
 partner_configs = {}
@@ -468,6 +469,9 @@ def fix_partner_config(orig_config):
     # l10n-changesets.json doesn't include en-US, but the repack list does
     if "en-US" not in all_locales:
         all_locales.append("en-US")
+    # A multi-locale package is repacked under its name, like a locale.
+    with open(MULTILOCALE_FILE) as fh:
+        all_locales.extend(json.load(fh).keys())
     for kind, kind_config in orig_config.items():
         if kind == "release-partner-attribution":
             pc[kind] = {}

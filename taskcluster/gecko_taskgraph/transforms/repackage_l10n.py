@@ -23,6 +23,10 @@ def split_locales(config, jobs):
         locales = dep_job.attributes.get("chunk_locales") or dep_job.attributes.get(
             "all_locales", []
         )
+        if config.kind == "repackage-deb-l10n":
+            # These repackage langpacks, which a multi-locale package lacks.
+            multilocales = dep_job.attributes.get("multilocales", [])
+            locales = [locale for locale in locales if locale not in multilocales]
         for locale in locales:
             locale_job = deepcopy(job)  # don't overwrite dict values here
             treeherder = locale_job.setdefault("treeherder", {})

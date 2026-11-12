@@ -58,6 +58,11 @@ def define_upstream_artifacts(config, jobs):
             "all_locales", []
         )
 
+        # A multi-locale package has no langpack.
+        multilocales = dep_job.attributes.get("multilocales", [])
+        if multilocales:
+            job["attributes"]["multilocales"] = multilocales
+
         locale_specifications = generate_specifications_of_artifacts_to_sign(
             config,
             job,
@@ -82,6 +87,10 @@ def define_upstream_artifacts(config, jobs):
                     path_template.format(locale=locale)
                     for locale in locales
                     for path_template in spec["artifacts"]
+                    if not (
+                        locale in multilocales
+                        and path_template.endswith("target.langpack.xpi")
+                    )
                 }),
                 "formats": spec["formats"],
             })

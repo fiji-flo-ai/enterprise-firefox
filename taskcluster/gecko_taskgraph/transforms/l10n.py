@@ -99,6 +99,9 @@ class L10nDescriptionSchema(Schema, kw_only=True):
     worker_type: _by_platform(str)  # type: ignore  # noqa: F821
     # File which contains the used locales
     locales_file: _by_platform_or_project(str)  # type: ignore  # noqa: F821
+    # File which defines the multi-locale packages to repack, by name. A name
+    # is repacked like a locale, with all its locales in one package.
+    multilocale_file: Optional[_by_platform(Optional[str])] = None  # type: ignore
     # Tooltool visibility required for task.
     tooltool: _by_platform(Literal["internal", "public"])  # type: ignore  # noqa: F821
     # Docker image required for task.  We accept only in-tree images
@@ -148,6 +151,33 @@ def parse_locales_file(locales_file, platform=None):
             # 'default' is the hg revision at the top of hg repo, in this context
             locales = {locale: "default" for locale in all_locales}
     return locales
+
+
+def parse_multilocale_file(multilocale_file, locales_with_changesets):
+    """Return the changeset to repack each multi-locale package of the passed
+    file from, by the name of the package."""
+    if not multilocale_file:
+        return {}
+
+    with open(multilocale_file) as f:
+        multilocales = json.load(f)
+
+    changesets = {}
+    for name, entry in multilocales.items():
+        locales = [locale for locale in entry["locales"] if locale != "en-US"]
+        missing = sorted(set(locales) - set(locales_with_changesets))
+        if missing:
+            raise Exception(
+                f"{multilocale_file}: {name} has locales which are not repacked "
+                f"for this platform: {', '.join(missing)}"
+            )
+        revisions = {locales_with_changesets[locale] for locale in locales}
+        if len(revisions) != 1:
+            raise Exception(
+                f"{multilocale_file}: the locales of {name} must share one revision"
+            )
+        changesets[name] = revisions.pop()
+    return changesets
 
 
 def _remove_locales(locales, to_remove=None):
@@ -205,6 +235,7 @@ def handle_keyed_by(config, jobs):
     """Resolve fields that can be keyed by platform, etc."""
     fields = [
         "locales-file",
+        "multilocale-file",
         "locales-per-chunk",
         "worker-type",
         "description",
@@ -266,8 +297,15 @@ def all_locales_attribute(config, jobs):
             locales_with_changesets, to_remove=job["ignore-locales"]
         )
 
+        multilocales = parse_multilocale_file(
+            job.get("multilocale-file"), locales_with_changesets
+        )
+        locales_with_changesets.update(multilocales)
+
         locales = sorted(locales_with_changesets.keys())
         attributes = job.setdefault("attributes", {})
+        if multilocales:
+            attributes["multilocales"] = sorted(multilocales)
         attributes["all_locales"] = locales
         attributes["all_locales_with_changesets"] = locales_with_changesets
         if job.get("shipping-product"):
