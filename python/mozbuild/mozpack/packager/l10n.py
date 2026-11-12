@@ -287,17 +287,95 @@ def repack(
             finders[base] = UnpackFinder(path, minify=minify)
         l10n_finder = ComposedFinder(finders)
     copier = FileCopier()
-    compress = min(app_finder.compressed, JAR_DEFLATED)
-    if app_finder.kind == "flat":
-        formatter = FlatFormatter(copier)
-    elif app_finder.kind == "jar":
-        formatter = JarFormatter(copier, compress=compress)
-    elif app_finder.kind == "omni":
-        formatter = OmniJarFormatter(
-            copier, app_finder.omnijar, compress=compress, non_resources=non_resources
-        )
+    formatter = _formatter_for(app_finder, copier, non_resources)
 
     with errors.accumulate():
         _repack(app_finder, l10n_finder, copier, formatter, non_chrome)
+    copier.copy(source, skip_if_older=False)
+    generate_precomplete(source)
+
+
+def _formatter_for(app_finder, copier, non_resources):
+    compress = min(app_finder.compressed, JAR_DEFLATED)
+    if app_finder.kind == "flat":
+        return FlatFormatter(copier)
+    if app_finder.kind == "jar":
+        return JarFormatter(copier, compress=compress)
+    if app_finder.kind == "omni":
+        return OmniJarFormatter(
+            copier, app_finder.omnijar, compress=compress, non_resources=non_resources
+        )
+
+
+def _add_locales(app_finder, l10n_finders, copier, formatter, extra_files={}):
+    packager = SimplePackager(formatter)
+    for p, f in app_finder:
+        if p not in extra_files:
+            packager.add(p, f)
+
+    added = set()
+    l10n_manifests = []
+    for l10n_finder in l10n_finders:
+        l10n = LocaleManifestFinder(l10n_finder)
+        if len(l10n.locales) != 1:
+            errors.fatal(
+                "Expected one l10n locale per directory, got: " + ",".join(l10n.locales)
+            )
+            continue
+        for e in l10n.entries:
+            if not isinstance(e, ManifestChrome):
+                continue
+            for p, f in l10n_finder.find(e.path):
+                if p not in added:
+                    added.add(p)
+                    packager.add(p, f)
+        for base in sorted(set(e.base for e in l10n.entries)):
+            m = ManifestFile(base, [e for e in l10n.entries if e.base == base])
+            path = mozpath.join(base, f"chrome.{l10n.locales[0]}.manifest")
+            l10n_manifests.append((path, m))
+
+    bases = packager.get_bases()
+    for path, m in l10n_manifests:
+        base = mozpath.basedir(path, bases)
+        packager.add(path, m)
+        top = ManifestFile(base)
+        top.add(Manifest(base, mozpath.relpath(path, base)))
+        packager.add(mozpath.join(base, "chrome.manifest"), top)
+
+    packager.close()
+
+    for l10n_finder in l10n_finders:
+        for p, f in l10n_finder.find("**/localization"):
+            if not formatter.contains(p):
+                formatter.add(p, f)
+
+    for p, content in extra_files.items():
+        formatter.add(p, GeneratedFile(content))
+
+    for path, log in app_finder.jarlogs.items():
+        assert isinstance(copier[path], Jarrer)
+        copier[path].preload(log)
+
+
+def add_locales(source, l10n_dirs, non_resources=[], minify=False, extra_files={}):
+    """
+    Add the localized data from each directory in `l10n_dirs` to the packaged
+    application in the `source` directory, next to the locale it already has.
+
+    Each directory in `l10n_dirs` contains the localized data for one locale,
+    in the same form as the `l10n` argument of `repack`. Only its chrome and
+    `localization` files are used: the other localized files of the package,
+    which exist once per package, are left as they are.
+    The `extra_files` argument associates relative paths in the source to the
+    content (as bytes) of files to add to the package or to replace in it.
+    The `non_resources` and `minify` arguments are as for `repack`.
+    """
+    app_finder = UnpackFinder(source, minify=minify)
+    l10n_finders = [UnpackFinder(path, minify=minify) for path in l10n_dirs]
+    copier = FileCopier()
+    formatter = _formatter_for(app_finder, copier, non_resources)
+
+    with errors.accumulate():
+        _add_locales(app_finder, l10n_finders, copier, formatter, extra_files)
     copier.copy(source, skip_if_older=False)
     generate_precomplete(source)

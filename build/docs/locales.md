@@ -91,6 +91,53 @@ the `MOZ_CHROME_MULTILOCALE` variable set, like:
 env MOZ_CHROME_MULTILOCALE=en-US,de,it,zh-TW ./mach android install-geckoview_example
 ```
 
+### Instructions for multi-locale repacks
+
+A multi-locale repack adds several locales to the en-US package, without
+language packs and without a build. It is how the multi-language installers
+of Firefox Enterprise are made. `$MOZ_BUILD_APP/locales/multilocale.json`
+defines the packages, each with a name and the locales it adds to en-US:
+
+```json
+{
+  "multi": {
+    "locales": ["de", "en-GB", "es-ES", "fr", "it", "nl"]
+  }
+}
+```
+
+A name is repacked in place of a locale, and takes the place of a locale in
+everything that follows from the repack: the directory of the artifacts, the
+installers, and the updates.
+
+```shell
+./mach repackage-single-locales --locales multi
+```
+
+Adding a package for a region is a matter of adding a name, like
+`multi-emea`, to `multilocale.json`. In automation, `multilocale-file` in the
+`shippable-l10n` kind adds the names of the file to the locales to repack, and
+all the locales of a package have to be among those.
+
+A multi-locale package differs from the en-US package in the following ways:
+
+- The chrome and Fluent resources of each locale are added next to those of
+  en-US, and `res/multilocale.txt` lists them.
+- `$MOZ_BUILD_APP/locales/firefox-multilocale.js` is added to its default
+  preferences. It sets `intl.locale.requested` to the empty string, for the
+  browser to use the locales of the operating system, falling back to en-US
+  when the package has none of them. It also lets the user choose among the
+  packaged locales in the settings. The `RequestedLocales` policy, like the
+  choice of the user, sets `intl.locale.requested`.
+- A `default.locale` file with the name of the package is added to the
+  application directory. The update URL takes `%LOCALE%` from this file before
+  the one of the GRE directory, which still holds `en-US`, the default locale.
+  The update server so serves a multi-locale package its own updates, built
+  from the same repack, and an update keeps the locales of the installation.
+
+The localized files which exist once per package, like `updater.ini` and the
+Windows installer and uninstaller, are those of en-US.
+
 ### General flow of repacks
 
 The general flow of the locale repacks is controlled by

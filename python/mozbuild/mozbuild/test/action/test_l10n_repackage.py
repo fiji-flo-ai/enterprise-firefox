@@ -75,5 +75,41 @@ class TestBuildUninstaller(unittest.TestCase):
         build.assert_called_once()
 
 
+class TestMultilocaleRepack(unittest.TestCase):
+    def test_adds_staged_locales_and_package_files(self):
+        prefs = mock.Mock()
+        prefs.name = "app-multilocale.js"
+        prefs.read_bytes.return_value = b"prefs"
+        with contextlib.ExitStack() as es:
+            es.enter_context(
+                mock.patch.object(l10n_repackage.buildconfig, "substs", dict(_SUBSTS))
+            )
+            add_locales = es.enter_context(
+                mock.patch.object(l10n_repackage.packager_l10n, "add_locales")
+            )
+            l10n_repackage._do_multilocale_repack(
+                stagedist=Path("/obj/stage/dist"),
+                locale="multi",
+                xpi_stages=[Path("/obj/xpi-stage/locale-de")],
+                multilocale=["de", "fr"],
+                multilocale_prefs=prefs,
+                dist_subdir="browser",
+                non_resources=[],
+                minify=False,
+            )
+
+        add_locales.assert_called_once_with(
+            str(Path("/obj/stage/dist")),
+            [str(Path("/obj/xpi-stage/locale-de"))],
+            non_resources=[],
+            minify=False,
+            extra_files={
+                "res/multilocale.txt": b"de,fr,en-US\n",
+                "browser/default.locale": b"multi\n",
+                "browser/defaults/preferences/app-multilocale.js": b"prefs",
+            },
+        )
+
+
 if __name__ == "__main__":
     mozunit.main()

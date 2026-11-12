@@ -1,0 +1,5 @@
+{
+  "multi": {
+    "locales": ["de", "en-GB", "es-ES", "fr", "it", "nl"]
+  }
+}

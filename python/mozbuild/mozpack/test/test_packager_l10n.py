@@ -143,6 +143,114 @@ class TestL10NRepack(unittest.TestCase):
             dict((p, f.open().read()) for p, f in repacked.items()),
         )
 
+    def test_add_locales(self):
+        foo = GeneratedFile(b"foo")
+        qux = GeneratedFile(b"qux")
+        barbaz = GeneratedFile(b"barbaz")
+        ftl = GeneratedFile(b"ftl")
+        app_finder = MockFinder({
+            "bar/foo": foo,
+            "chrome/qux/qux.properties": qux,
+            "chrome/chrome.manifest": ManifestFile(
+                "chrome", [ManifestLocale("chrome", "qux", "en-US", "qux/")]
+            ),
+            "chrome.manifest": ManifestFile(
+                "", [Manifest("", "chrome/chrome.manifest")]
+            ),
+            "localization/en-US/foo.ftl": ftl,
+            "res/multilocale.txt": GeneratedFile(b"en-US"),
+            "app/chrome/bar/barbaz.dtd": barbaz,
+            "app/chrome/chrome.manifest": ManifestFile(
+                "app/chrome", [ManifestLocale("app/chrome", "bar", "en-US", "bar/")]
+            ),
+            "app/chrome.manifest": ManifestFile(
+                "app", [Manifest("app", "chrome/chrome.manifest")]
+            ),
+        })
+        app_finder.jarlogs = {}
+
+        def l10n_finder(locale):
+            def content(name):
+                return GeneratedFile(f"{name}_{locale}".encode())
+
+            return MockFinder({
+                f"chrome/{locale}/qux.properties": content("qux"),
+                "chrome/chrome.manifest": ManifestFile(
+                    "chrome", [ManifestLocale("chrome", "qux", locale, f"{locale}/")]
+                ),
+                "chrome.manifest": ManifestFile(
+                    "", [Manifest("", "chrome/chrome.manifest")]
+                ),
+                f"localization/{locale}/foo.ftl": content("ftl"),
+                "res/multilocale.txt": GeneratedFile(f"{locale},en-US".encode()),
+                "default.locale": GeneratedFile(locale.encode()),
+                f"app/chrome/{locale}/barbaz.dtd": content("barbaz"),
+                "app/chrome/chrome.manifest": ManifestFile(
+                    "app/chrome",
+                    [ManifestLocale("app/chrome", "bar", locale, f"{locale}/")],
+                ),
+                "app/chrome.manifest": ManifestFile(
+                    "app", [Manifest("app", "chrome/chrome.manifest")]
+                ),
+            })
+
+        copier = FileRegistry()
+        formatter = l10n.FlatFormatter(copier)
+
+        l10n._add_locales(
+            app_finder,
+            [l10n_finder("x-one"), l10n_finder("x-two")],
+            copier,
+            formatter,
+            {
+                "res/multilocale.txt": b"x-one,x-two,en-US",
+                "app/default.locale": b"multi",
+            },
+        )
+        self.maxDiff = None
+
+        packaged = {
+            "bar/foo": foo,
+            "chrome/qux/qux.properties": qux,
+            "chrome/x-one/qux.properties": GeneratedFile(b"qux_x-one"),
+            "chrome/x-two/qux.properties": GeneratedFile(b"qux_x-two"),
+            "chrome/chrome.manifest": ManifestFile(
+                "chrome",
+                [
+                    ManifestLocale("chrome", "qux", "en-US", "qux/"),
+                    ManifestLocale("chrome", "qux", "x-one", "x-one/"),
+                    ManifestLocale("chrome", "qux", "x-two", "x-two/"),
+                ],
+            ),
+            "chrome.manifest": ManifestFile(
+                "", [Manifest("", "chrome/chrome.manifest")]
+            ),
+            "localization/en-US/foo.ftl": ftl,
+            "localization/x-one/foo.ftl": GeneratedFile(b"ftl_x-one"),
+            "localization/x-two/foo.ftl": GeneratedFile(b"ftl_x-two"),
+            "res/multilocale.txt": GeneratedFile(b"x-one,x-two,en-US"),
+            "app/chrome/bar/barbaz.dtd": barbaz,
+            "app/chrome/x-one/barbaz.dtd": GeneratedFile(b"barbaz_x-one"),
+            "app/chrome/x-two/barbaz.dtd": GeneratedFile(b"barbaz_x-two"),
+            "app/chrome/chrome.manifest": ManifestFile(
+                "app/chrome",
+                [
+                    ManifestLocale("app/chrome", "bar", "en-US", "bar/"),
+                    ManifestLocale("app/chrome", "bar", "x-one", "x-one/"),
+                    ManifestLocale("app/chrome", "bar", "x-two", "x-two/"),
+                ],
+            ),
+            "app/chrome.manifest": ManifestFile(
+                "app", [Manifest("app", "chrome/chrome.manifest")]
+            ),
+            "app/default.locale": GeneratedFile(b"multi"),
+        }
+
+        self.assertEqual(
+            dict((p, f.open().read()) for p, f in copier),
+            dict((p, f.open().read()) for p, f in packaged.items()),
+        )
+
 
 if __name__ == "__main__":
     mozunit.main()

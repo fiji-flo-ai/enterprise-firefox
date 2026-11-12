@@ -4195,6 +4195,21 @@ def run_mach(command_context, cmd, **kwargs):
     )
 
 
+def read_multilocales(topsrcdir, build_app):
+    """Return the locales of each multi-locale package of the application, by
+    the name of the package. A name is repackaged like a locale, with all its
+    locales added to the en-US package.
+    """
+    path = Path(topsrcdir) / build_app / "locales" / "multilocale.json"
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8") as f:
+        return {
+            name: sorted(locale for locale in entry["locales"] if locale != "en-US")
+            for name, entry in json.load(f).items()
+        }
+
+
 @Command(
     "repackage-single-locales",
     category="post-build",
@@ -4304,6 +4319,10 @@ def repackage_single_locales(command_context, verbose=False, locales=[], dest=No
         shutil.copy2(en_us_package, en_us_snapshot)
         append_env["MOZ_ARTIFACT_FILE"] = str(en_us_snapshot)
 
+    multilocales = read_multilocales(
+        command_context.topsrcdir, command_context.substs["MOZ_BUILD_APP"]
+    )
+
     try:
         for locale in locales:
             command_context.log(
@@ -4312,6 +4331,14 @@ def repackage_single_locales(command_context, verbose=False, locales=[], dest=No
                 {"locale": locale},
                 "Repackaging locale {locale}",
             )
+
+            target = f"installers-{locale}"
+            build_env = append_env
+            if locale in multilocales:
+                target = f"multilocale-installers-{locale}"
+                build_env = dict(
+                    append_env, MOZ_CHROME_MULTILOCALE=" ".join(multilocales[locale])
+                )
 
             line_handler = prefixed_line_handler(locale)
 
@@ -4338,9 +4365,9 @@ def repackage_single_locales(command_context, verbose=False, locales=[], dest=No
                 ]
                 + (["-v"] if verbose else [])
                 + [
-                    f"installers-{locale}",
+                    target,
                 ],
-                append_env=append_env,
+                append_env=build_env,
                 pass_thru=False,
                 ensure_exit_code=True,
                 line_handler=line_handler,

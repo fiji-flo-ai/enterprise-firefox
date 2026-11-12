@@ -4,7 +4,8 @@
 
 """Per-locale repackage action.
 
-Re-packs the en-US dist as a single-locale package. Orchestrates:
+Re-packs the en-US dist as a single-locale package, or as a multi-locale
+package when --multilocale is given. Orchestrates:
 
 1. Unpack the en-US package into <l10n_stage>/<pkg_dir>/
 2. l10n-repack: swap localized parts in-place
@@ -67,6 +68,9 @@ def l10n_repackage(
     non_resources: list[str],
     minify: bool,
     package_extra_args: list[str],
+    multilocale: list[str] = [],
+    multilocale_prefs: Path | None = None,
+    dist_subdir: str = "",
 ) -> int:
     is_cocoa = moz_widget_toolkit == "cocoa"
     is_winnt = os_arch == "WINNT"
@@ -87,9 +91,22 @@ def l10n_repackage(
     if result := _unpack(mach, l10n_stage, unpack_distdir, en_us_package):
         return result
 
-    _do_l10n_repack(stagedist, xpi_stage, extra_l10n, non_resources, minify)
-
-    renamed_lproj = _maybe_rename_lproj(stagedist, locale, is_cocoa)
+    multilocale = [loc for loc in multilocale if loc != "en-US"]
+    if multilocale:
+        _do_multilocale_repack(
+            stagedist,
+            locale,
+            [xpi_stage.with_name(f"locale-{loc}") for loc in multilocale],
+            multilocale,
+            multilocale_prefs,
+            dist_subdir,
+            non_resources,
+            minify,
+        )
+        renamed_lproj = None
+    else:
+        _do_l10n_repack(stagedist, xpi_stage, extra_l10n, non_resources, minify)
+        renamed_lproj = _maybe_rename_lproj(stagedist, locale, is_cocoa)
 
     if is_winnt:
         if installer_dir is None:
@@ -197,6 +214,42 @@ def _do_l10n_repack(
         non_resources=non_resources,
         non_chrome=_NON_CHROME,
         minify=minify,
+    )
+
+
+def _do_multilocale_repack(
+    stagedist: Path,
+    locale: str,
+    xpi_stages: list[Path],
+    multilocale: list[str],
+    multilocale_prefs: Path | None,
+    dist_subdir: str,
+    non_resources: list[str],
+    minify: bool,
+) -> None:
+    """Add the locales staged in xpi_stages to the en-US package.
+
+    The package keeps en-US as its default locale. Its updates are those of
+    `locale`, the name of the set of locales: UpdateUtils reads default.locale
+    from the application directory before the one in the GRE directory.
+    """
+    buildconfig.substs["USE_ELF_HACK"] = False
+    buildconfig.substs["PKG_STRIP"] = False
+    extra_files = {
+        "res/multilocale.txt": (",".join(multilocale + ["en-US"]) + "\n").encode(),
+        "/".join(filter(None, [dist_subdir, "default.locale"])): f"{locale}\n".encode(),
+    }
+    if multilocale_prefs:
+        prefs = "/".join(
+            filter(None, [dist_subdir, "defaults/preferences", multilocale_prefs.name])
+        )
+        extra_files[prefs] = multilocale_prefs.read_bytes()
+    packager_l10n.add_locales(
+        str(stagedist),
+        [str(path) for path in xpi_stages],
+        non_resources=non_resources,
+        minify=minify,
+        extra_files=extra_files,
     )
 
 
@@ -347,6 +400,24 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Set when MOZ_PACKAGER_MINIFY is true",
     )
+    parser.add_argument(
+        "--multilocale",
+        action="append",
+        default=[],
+        help="Locale to add to the en-US package, staged next to --xpi-stage. "
+        "Makes --locale the name of a multi-locale package. Repeatable.",
+    )
+    parser.add_argument(
+        "--multilocale-prefs",
+        type=Path,
+        default=None,
+        help="Default preferences file to add to a multi-locale package",
+    )
+    parser.add_argument(
+        "--dist-subdir",
+        default="",
+        help="DIST_SUBDIR, the application directory of the package",
+    )
     # Any unrecognized argv tokens are forwarded verbatim to the package
     # action. This is how MOZ_PACKAGE_EXTRA_ARGS (--strong-compression,
     # --dsstore <path>, --app-name 'Firefox Developer Edition.app', etc.)
@@ -378,6 +449,9 @@ def main(argv: list[str]) -> int:
         non_resources=args.non_resource,
         minify=args.minify,
         package_extra_args=package_extra_args,
+        multilocale=args.multilocale,
+        multilocale_prefs=args.multilocale_prefs,
+        dist_subdir=args.dist_subdir,
     )
 
 

@@ -47,3 +47,17 @@ ifeq (WINNT,$(OS_ARCH))
 	@$(MAKE) package-win32-installer AB_CD=$*
 endif
 	@echo 'repackaging done'
+
+MULTILOCALE_PREFS = $(srcdir)/firefox-multilocale.js
+
+# Repacks the en-US package with the locales of MOZ_CHROME_MULTILOCALE added
+# to it. The stem is the name of that set of locales, which takes the place a
+# locale has in the name and the updates of a single-locale repack.
+multilocale-installers-%: IS_LANGUAGE_REPACK=1
+multilocale-installers-%:
+	@$(MAKE) $(addprefix l10n-,$(MOZ_CHROME_MULTILOCALE))
+	@$(MAKE) repackage-zip-$* MULTILOCALE_REPACK=1
+ifeq (WINNT,$(OS_ARCH))
+	@$(MAKE) package-win32-installer AB_CD=$*
+endif
+	@echo 'repackaging done'

@@ -21,7 +21,7 @@ ifdef MAKENSISU
 INSTALLER_REPACK_DEPS = browser/installer/windows/nsis-stage.stamp
 endif
 
-installers-%: $(INSTALLER_REPACK_DEPS)
+installers-% multilocale-installers-%: $(INSTALLER_REPACK_DEPS)
 	$(MAKE) -C browser/locales $@
 
 merge-% langpack-% chrome-%:
